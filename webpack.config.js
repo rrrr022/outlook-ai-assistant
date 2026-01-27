@@ -71,6 +71,16 @@ module.exports = {
           to: 'assets',
           noErrorOnMissing: true,
         },
+        {
+          from: 'manifest.azure.xml',
+          to: 'manifest.azure.xml',
+          noErrorOnMissing: true,
+        },
+        {
+          from: 'staticwebapp.config.json',
+          to: 'staticwebapp.config.json',
+          noErrorOnMissing: true,
+        },
       ],
     }),
     // Define environment variables for client

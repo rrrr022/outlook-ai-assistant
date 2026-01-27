@@ -1,12 +1,18 @@
 {
   "navigationFallback": {
     "rewrite": "/taskpane.html",
-    "exclude": ["/assets/*", "/*.js", "/*.css", "/*.png", "/*.ico", "/api/*"]
+    "exclude": ["/assets/*", "/*.js", "/*.css", "/*.png", "/*.ico", "/api/*", "/*.xml"]
   },
   "routes": [
     {
       "route": "/taskpane.html",
       "rewrite": "/taskpane.html"
+    },
+    {
+      "route": "/manifest.azure.xml",
+      "headers": {
+        "Content-Type": "application/xml"
+      }
     },
     {
       "route": "/assets/*",
@@ -30,6 +36,7 @@
     "Content-Security-Policy": "default-src 'self' https://*.microsoft.com https://*.office.com https://*.office365.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.microsoft.com https://*.office.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.microsoft.com https://*.office.com https://*.microsoftonline.com https://*.graph.microsoft.com https://*.azurewebsites.net https://zealous-ground-01f6af20f.2.azurestaticapps.net wss:;"
   },
   "mimeTypes": {
-    ".json": "application/json"
+    ".json": "application/json",
+    ".xml": "application/xml"
   }
 }
