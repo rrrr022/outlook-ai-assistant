@@ -1,13 +1,14 @@
 import { PublicClientApplication, Configuration, AuthenticationResult, SilentRequest, PopupRequest } from '@azure/msal-browser';
+import environment from '../config/environment';
 
 // Your Azure AD App Registration
-const AZURE_CLIENT_ID = 'de86f8c9-815b-415c-94fc-b13163799862';
+const AZURE_CLIENT_ID = environment.azure.clientId;
 
 const msalConfig: Configuration = {
   auth: {
     clientId: AZURE_CLIENT_ID,
-    authority: 'https://login.microsoftonline.com/common', // Supports all account types
-    redirectUri: 'https://localhost:8080/taskpane.html',
+    authority: environment.azure.authority,
+    redirectUri: environment.azure.redirectUri,
   },
   cache: {
     cacheLocation: 'localStorage',
@@ -15,7 +16,7 @@ const msalConfig: Configuration = {
   system: {
     loggerOptions: {
       loggerCallback: (level, message, containsPii) => {
-        if (!containsPii) {
+        if (!containsPii && environment.debug) {
           console.log('[MSAL]', message);
         }
       },

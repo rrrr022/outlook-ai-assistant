@@ -1,0 +1,19 @@
+{
+  "name": "outlook-ai-api",
+  "version": "1.0.0",
+  "description": "Azure Functions API for Outlook AI Assistant",
+  "main": "dist/functions/*.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "func start",
+    "prestart": "npm run build"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.0.0",
+    "openai": "^4.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
