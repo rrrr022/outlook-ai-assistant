@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Generate Icons</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    canvas { border: 1px solid #ccc; margin: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Icon Generator</h1>
+  <p>Right-click each icon and save as PNG:</p>
+  <div id="icons"></div>
+  <script>
+    const sizes = [16, 32, 64, 80];
+    const container = document.getElementById('icons');
+    
+    sizes.forEach(size => {
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      
+      // Background
+      ctx.fillStyle = '#0078d4';
+      ctx.beginPath();
+      ctx.roundRect(0, 0, size, size, size * 0.1);
+      ctx.fill();
+      
+      // Text
+      ctx.fillStyle = 'white';
+      ctx.font = `bold ${size * 0.45}px Segoe UI, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('AI', size / 2, size / 2 + size * 0.05);
+      
+      const label = document.createElement('div');
+      label.innerHTML = `<strong>icon-${size}.png</strong><br>`;
+      
+      const img = document.createElement('img');
+      img.src = canvas.toDataURL('image/png');
+      img.alt = `${size}x${size} icon`;
+      
+      const link = document.createElement('a');
+      link.href = img.src;
+      link.download = `icon-${size}.png`;
+      link.textContent = 'Download';
+      
+      label.appendChild(canvas);
+      label.appendChild(document.createElement('br'));
+      label.appendChild(link);
+      container.appendChild(label);
+    });
+  </script>
+</body>
+</html>

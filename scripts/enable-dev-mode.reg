@@ -1,0 +1,11 @@
+Windows Registry Editor Version 5.00
+
+; This registry file adds the Outlook AI Assistant add-in to Outlook Desktop
+; Run this file as Administrator to install the add-in
+
+[HKEY_CURRENT_USER\Software\Microsoft\Office\16.0\WEF\Developer]
+
+[HKEY_CURRENT_USER\Software\Microsoft\Office\16.0\WEF\Developer\a1b2c3d4-e5f6-7890-abcd-ef1234567890]
+"UseDirectDebugger"=dword:00000001
+"UseLiveReload"=dword:00000001
+"UseWebDebugger"=dword:00000000
