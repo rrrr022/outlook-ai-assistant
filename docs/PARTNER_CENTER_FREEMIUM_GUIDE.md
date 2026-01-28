@@ -1,6 +1,6 @@
 # 📦 Microsoft Partner Center - Freemium Pricing Setup Guide
 
-## For: Outlook AI by FreedomForged_AI
+## For: FreedomForged AI for Outlook
 
 This guide walks you through setting up a **freemium pricing model** on Microsoft Partner Center for your Office Add-in.
 
@@ -59,7 +59,7 @@ This guide walks you through setting up a **freemium pricing model** on Microsof
 
 ### 2.2 App Description
 ```
-**Outlook AI by FreedomForged_AI** - Your Intelligent Email Assistant
+**FreedomForged AI for Outlook** - Your Intelligent Email Assistant
 
 🔐 **BRING YOUR OWN KEY (BYOK)** - We don't store your emails or data!
 

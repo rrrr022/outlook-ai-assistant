@@ -235,15 +235,15 @@ const OnboardingPanel: React.FC<OnboardingProps> = ({ onComplete }) => {
       <div className="welcome-header">
         <div className="logo-container">
           <span className="logo-icon">🤖</span>
-          <h1 className="logo-text">Outlook AI</h1>
+          <h1 className="logo-text">FreedomForged AI</h1>
         </div>
-        <p className="welcome-tagline">by FreedomForged_AI</p>
+        <p className="welcome-tagline">for Outlook</p>
       </div>
 
       <div className="welcome-intro">
         <p className="intro-text">
           Welcome to the future of email and calendar management. 
-          Outlook AI transforms your Outlook into an intelligent assistant 
+          FreedomForged AI transforms your Outlook into an intelligent assistant 
           that understands, organizes, and acts on your behalf.
         </p>
       </div>

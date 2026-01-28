@@ -1,6 +1,6 @@
 # 🚀 AppSource Submission Checklist
 
-## Outlook AI by FreedomForged_AI
+## FreedomForged AI for Outlook
 
 ---
 
@@ -60,7 +60,7 @@ on dark background, minimalist, tech aesthetic, 300x300, transparent PNG"
 
 **App Name**: 
 ```
-Outlook AI by FreedomForged_AI
+FreedomForged AI for Outlook
 ```
 
 **Short Description** (100 chars):
@@ -70,7 +70,7 @@ AI-powered email assistant with BYOK privacy. Summarize, compose, and manage ema
 
 **Long Description** (for store listing):
 ```
-🤖 **Outlook AI by FreedomForged_AI** - Your Privacy-First Email Assistant
+🤖 **FreedomForged AI for Outlook** - Your Privacy-First Email Assistant
 
 Transform your Outlook experience with intelligent AI assistance while keeping your data completely private.
 
@@ -143,8 +143,8 @@ AI, email assistant, BYOK, privacy, GPT, Claude, summarize, compose, document ge
 3. Click "+ New offer" → "Office add-in"
 
 ### Step 2: Fill Offer Details
-- **Offer ID**: outlook-ai-freedomforged (lowercase, no spaces)
-- **Offer alias**: Outlook AI by FreedomForged_AI
+- **Offer ID**: freedomforged-ai-outlook (lowercase, no spaces)
+- **Offer alias**: FreedomForged AI for Outlook
 
 ### Step 3: Offer Setup Page
 - Select "Outlook" as the host application
@@ -161,7 +161,7 @@ AI, email assistant, BYOK, privacy, GPT, Claude, summarize, compose, document ge
 - **Support**: Link to Support URL
 
 ### Step 5: Offer Listing Page
-- **Name**: Outlook AI by FreedomForged_AI
+- **Name**: FreedomForged AI for Outlook
 - **Search results summary**: (100 char description above)
 - **Description**: (long description above)
 - **Keywords**: (listed above)

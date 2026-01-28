@@ -243,7 +243,7 @@ class AIService {
     try {
       // If user has their own key and not using server mode, call directly
       if (!useServerKey && userApiKey) {
-        const systemPrompt = `You are an AI assistant integrated into Microsoft Outlook, built by FreedomForged_AI. You help users manage their emails, calendar, and tasks efficiently.
+        const systemPrompt = `You are FreedomForged AI, an intelligent assistant integrated into Microsoft Outlook. You help users manage their emails, calendar, and tasks efficiently.
 
 Your capabilities:
 - Summarize emails and extract key information
