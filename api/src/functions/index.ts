@@ -1,6 +1,10 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import OpenAI from "openai";
 
+// Import other function modules to register them
+import "./chat";
+import "./health";
+
 // FreedomForged AI for Outlook - Backend API
 // Version: 1.1.1 - Added BYOK support for GitHub Models (CORS bypass)
 // Last updated: Deployment trigger
