@@ -93,6 +93,20 @@ module.exports = {
       'process.env.DEFAULT_SERVER_PORT': JSON.stringify(DEFAULT_SERVER_PORT),
     }),
   ],
+  // Code splitting for lazy-loaded document libraries (docx, exceljs)
+  optimization: {
+    splitChunks: {
+      chunks: 'async',
+      cacheGroups: {
+        documentLibs: {
+          test: /[\\/]node_modules[\\/](docx|exceljs)[\\/]/,
+          name: 'document-libs',
+          chunks: 'async',
+          priority: 10,
+        },
+      },
+    },
+  },
   devServer: {
     static: {
       directory: path.join(__dirname, 'dist/client'),

@@ -5,7 +5,7 @@ import { useAppStore } from '../store/appStore';
 import { aiService } from '../services/aiService';
 import { outlookService } from '../services/outlookService';
 import { graphService } from '../services/graphService';
-import { documentService, DocumentType } from '../services/documentService';
+import { documentService, DocumentType, TemplateType } from '../services/documentService';
 import { v4 as uuidv4 } from 'uuid';
 
 const ChatPanel: React.FC = () => {
@@ -369,30 +369,43 @@ Please help the user with their request. If they want a summary, provide a clear
     handleSend(suggestion);
   };
 
-  // Handle document export
+  // Handle document export with auto-template detection
   const handleExport = async (type: DocumentType, content: string) => {
     try {
-      const title = `AI Response - ${new Date().toLocaleDateString()}`;
+      const detectedTemplate = documentService.detectTemplate(content);
+      const templateInfo = documentService.templates.find(t => t.id === detectedTemplate);
+      const title = `${templateInfo?.name || 'AI Response'} - ${new Date().toLocaleDateString()}`;
       
-      switch (type) {
-        case 'word':
-          await documentService.createWord(title, content);
-          break;
-        case 'pdf':
-          await documentService.createPDF(title, content);
-          break;
-        case 'excel':
-          await documentService.createExcel(title, content);
-          break;
-        case 'powerpoint':
-          await documentService.createPowerPoint(title, content);
-          break;
-      }
-      
+      // Show loading state
       addMessage({
         id: uuidv4(),
         role: 'assistant',
-        content: `✅ **${type.toUpperCase()} exported!** Check your downloads folder.`,
+        content: `⏳ Generating ${type.toUpperCase()} document...`,
+        timestamp: new Date(),
+      });
+      
+      const options = { template: detectedTemplate, includeCharts: true };
+      
+      switch (type) {
+        case 'word':
+          await documentService.createWord(title, content, options);
+          break;
+        case 'pdf':
+          await documentService.createPDF(title, content, options);
+          break;
+        case 'excel':
+          await documentService.createExcel(title, content, options);
+          break;
+        case 'powerpoint':
+          await documentService.createPowerPoint(title, content, options);
+          break;
+      }
+      
+      // Success message with template info
+      addMessage({
+        id: uuidv4(),
+        role: 'assistant',
+        content: `✅ **${type.toUpperCase()} exported!** ${templateInfo?.icon || '📄'}\n\nUsed template: **${templateInfo?.name || 'Custom'}**\n\n${type === 'pdf' || type === 'powerpoint' ? '💡 Tip: Use Ctrl+P to save as PDF or F11 for fullscreen presentation.' : 'Check your downloads folder.'}`,
         timestamp: new Date(),
       });
     } catch (error: any) {
