@@ -241,7 +241,7 @@ class AIService {
     });
 
     try {
-      // If user has their own key and not using server mode, call directly
+      // If user has their own key and not using server mode
       if (!useServerKey && userApiKey) {
         const systemPrompt = `You are FreedomForged AI, an intelligent assistant integrated into Microsoft Outlook. You help users manage their emails, calendar, and tasks efficiently.
 
@@ -275,6 +275,37 @@ If the user needs current information you don't have, suggest they provide it or
           { role: 'user', content: request.prompt },
         ];
 
+        // GitHub Models requires CORS proxy - route through backend
+        if (selectedProvider === 'github') {
+          const baseUrl = await this.getApiBaseUrl();
+          const response = await fetch(`${baseUrl}/api/chat`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              provider: 'github',
+              apiKey: userApiKey,
+              model: selectedModel,
+              messages,
+            }),
+          });
+
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: response.statusText }));
+            throw new Error(error.error || error.message || `API error: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          if (data.error) {
+            throw new Error(data.error);
+          }
+
+          console.log('📥 Got GitHub Models response via proxy');
+          return { content: data.response };
+        }
+
+        // Other providers can call directly (OpenAI, xAI have CORS enabled)
         const content = await this.directRequest(
           selectedProvider,
           userApiKey,
@@ -329,13 +360,40 @@ If the user needs current information you don't have, suggest they provide it or
         { role: 'user', content: 'Say "Connected!" in one word.' },
       ];
 
-      await this.directRequest(
-        selectedProvider,
-        userApiKey,
-        selectedModel,
-        messages,
-        { azureEndpoint, azureDeploymentName }
-      );
+      // GitHub Models requires CORS proxy - route through backend
+      if (selectedProvider === 'github') {
+        const baseUrl = await this.getApiBaseUrl();
+        const response = await fetch(`${baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            provider: 'github',
+            apiKey: userApiKey,
+            model: selectedModel,
+            messages,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ error: response.statusText }));
+          throw new Error(error.error || error.message || `API error: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        if (data.error) {
+          throw new Error(data.error);
+        }
+      } else {
+        await this.directRequest(
+          selectedProvider,
+          userApiKey,
+          selectedModel,
+          messages,
+          { azureEndpoint, azureDeploymentName }
+        );
+      }
 
       store.setConnectionStatus('connected');
       store.setLastError(null);

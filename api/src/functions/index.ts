@@ -229,3 +229,115 @@ function generateSuggestions(message: string, context?: ChatRequest["context"]):
 
     return suggestions.slice(0, 4);
 }
+
+// BYOK Chat endpoint - Uses user's API key (routes through server to avoid CORS)
+app.http("byok-chat", {
+    methods: ["POST", "OPTIONS"],
+    authLevel: "anonymous",
+    route: "chat",
+    handler: async (request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
+        // Handle CORS preflight
+        if (request.method === "OPTIONS") {
+            return { status: 204, headers: corsHeaders };
+        }
+
+        try {
+            const body = await request.json() as {
+                provider: string;
+                apiKey: string;
+                model: string;
+                messages: ChatMessage[];
+            };
+            
+            const { provider, apiKey, model, messages } = body;
+
+            if (!apiKey) {
+                return {
+                    status: 400,
+                    headers: corsHeaders,
+                    body: JSON.stringify({ error: "API key is required" })
+                };
+            }
+
+            if (!messages || messages.length === 0) {
+                return {
+                    status: 400,
+                    headers: corsHeaders,
+                    body: JSON.stringify({ error: "Messages are required" })
+                };
+            }
+
+            // Create OpenAI client with user's key
+            let client: OpenAI;
+            let modelToUse = model;
+
+            if (provider === 'github') {
+                client = new OpenAI({
+                    baseURL: "https://models.inference.ai.azure.com",
+                    apiKey: apiKey
+                });
+            } else if (provider === 'openai') {
+                client = new OpenAI({
+                    apiKey: apiKey
+                });
+            } else if (provider === 'xai') {
+                client = new OpenAI({
+                    baseURL: "https://api.x.ai/v1",
+                    apiKey: apiKey
+                });
+            } else {
+                return {
+                    status: 400,
+                    headers: corsHeaders,
+                    body: JSON.stringify({ error: `Unsupported provider: ${provider}` })
+                };
+            }
+
+            context.log(`BYOK request: provider=${provider}, model=${modelToUse}`);
+
+            const completion = await client.chat.completions.create({
+                model: modelToUse,
+                messages: messages,
+                max_tokens: 1000,
+                temperature: 0.7
+            });
+
+            const response = completion.choices[0]?.message?.content || "No response generated";
+
+            return {
+                status: 200,
+                headers: corsHeaders,
+                body: JSON.stringify({
+                    response,
+                    model: modelToUse,
+                    provider
+                })
+            };
+
+        } catch (error: any) {
+            context.log("BYOK Chat error:", error);
+            
+            // Parse error message for better user feedback
+            let errorMessage = error.message || "Connection failed";
+            
+            if (errorMessage.includes("401") || errorMessage.includes("Unauthorized")) {
+                errorMessage = "Invalid API key. Please check your key and try again.";
+            } else if (errorMessage.includes("403") || errorMessage.includes("Forbidden")) {
+                errorMessage = "Access denied. Your API key may not have access to this model.";
+            } else if (errorMessage.includes("429")) {
+                errorMessage = "Rate limited. Please wait a moment and try again.";
+            } else if (errorMessage.includes("404")) {
+                errorMessage = "Model not found. Please select a different model.";
+            }
+            
+            return {
+                status: 500,
+                headers: corsHeaders,
+                body: JSON.stringify({
+                    error: errorMessage,
+                    details: error.message
+                })
+            };
+        }
+    }
+});
