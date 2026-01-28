@@ -1,7 +1,10 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
 import OpenAI from "openai";
 
-// Initialize OpenAI client for GitHub Models
+// FreedomForged AI for Outlook - Backend API
+// Version: 1.1.0 - Added BYOK support for GitHub Models
+
+// Initialize OpenAI client for GitHub Models (server key mode)
 const openai = new OpenAI({
     baseURL: "https://models.inference.ai.azure.com",
     apiKey: process.env.GITHUB_TOKEN || ""
