@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Switch } from '@fluentui/react-components';
+import { Switch, Spinner } from '@fluentui/react-components';
 import { useAppStore } from '../store/appStore';
+import { useAPIKeyStore, PROVIDERS, maskApiKey, AIProvider } from '../store/apiKeyStore';
 import { AutomationRule } from '@shared/types';
+import { aiService } from '../services/aiService';
 import { v4 as uuidv4 } from 'uuid';
 
 const SettingsPanel: React.FC = () => {
@@ -13,10 +15,35 @@ const SettingsPanel: React.FC = () => {
     updateAutomationRule,
     deleteAutomationRule 
   } = useAppStore();
+
+  const {
+    selectedProvider,
+    selectedModel,
+    apiKeys,
+    useServerKey,
+    connectionStatus,
+    lastError,
+    azureEndpoint,
+    azureDeploymentName,
+    setSelectedProvider,
+    setSelectedModel,
+    setApiKey,
+    setAzureEndpoint,
+    setAzureDeploymentName,
+    setUseServerKey,
+    clearApiKey,
+    getCurrentProvider,
+  } = useAPIKeyStore();
   
   const [showAddRule, setShowAddRule] = useState(false);
   const [newRuleName, setNewRuleName] = useState('');
   const [newRuleDescription, setNewRuleDescription] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [tempApiKey, setTempApiKey] = useState('');
+  const [isTesting, setIsTesting] = useState(false);
+
+  const currentProvider = getCurrentProvider();
+  const currentApiKey = apiKeys[selectedProvider] || '';
 
   const handleAddRule = () => {
     if (!newRuleName.trim()) return;
@@ -39,6 +66,19 @@ const SettingsPanel: React.FC = () => {
     setNewRuleName('');
     setNewRuleDescription('');
     setShowAddRule(false);
+  };
+
+  const handleSaveApiKey = () => {
+    if (tempApiKey.trim()) {
+      setApiKey(selectedProvider, tempApiKey.trim());
+      setTempApiKey('');
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setIsTesting(true);
+    await aiService.testConnection();
+    setIsTesting(false);
   };
 
   const presetRules = [
@@ -68,32 +108,195 @@ const SettingsPanel: React.FC = () => {
     <div>
       <h2 className="section-title">⚙️ Settings</h2>
 
-      {/* AI Provider Settings */}
-      <div className="card">
+      {/* API Keys Section - BYOK */}
+      <div className="card api-keys-card">
         <h3 className="section-header--lg-margin">
-          🤖 AI Configuration
+          🔐 API Keys (BYOK)
         </h3>
         
-        <div className="form-row">
-          <label className="form-label">
-            AI Provider
-          </label>
-          <select
-            value={settings.aiProvider}
-            onChange={(e) => updateSettings({ aiProvider: e.target.value as 'openai' | 'anthropic' })}
-            className="select-input"
+        <p className="helper-text mb-12">
+          <strong>Bring Your Own Key</strong> - Your keys are stored locally in your browser and never sent to our servers.
+        </p>
+
+        {/* Mode Toggle */}
+        <div className="mode-toggle mb-16">
+          <div 
+            className={`mode-option ${useServerKey ? 'active' : ''}`}
+            onClick={() => setUseServerKey(true)}
           >
-            <option value="github">GitHub Models (GPT-4o, Claude) ⭐</option>
-            <option value="openai">OpenAI (Direct API)</option>
-            <option value="anthropic">Anthropic (Direct API)</option>
-          </select>
+            <span className="mode-icon">☁️</span>
+            <div className="mode-info">
+              <div className="mode-title">Hosted Mode</div>
+              <div className="mode-desc">Use app's shared API</div>
+            </div>
+          </div>
+          <div 
+            className={`mode-option ${!useServerKey ? 'active' : ''}`}
+            onClick={() => setUseServerKey(false)}
+          >
+            <span className="mode-icon">🔑</span>
+            <div className="mode-info">
+              <div className="mode-title">Your Own Key</div>
+              <div className="mode-desc">Direct to AI provider</div>
+            </div>
+          </div>
         </div>
 
-        <p className="helper-text">
-          💡 GitHub Models uses your GitHub account - no extra API costs!
-          <br />
-          Get a token from: github.com/settings/tokens
-        </p>
+        {/* Provider Selection */}
+        <div className="form-row">
+          <label className="form-label">AI Provider</label>
+          <div className="provider-grid">
+            {PROVIDERS.map((provider) => (
+              <div
+                key={provider.id}
+                className={`provider-card ${selectedProvider === provider.id ? 'selected' : ''} ${useServerKey ? 'disabled' : ''}`}
+                onClick={() => !useServerKey && setSelectedProvider(provider.id)}
+              >
+                <span className="provider-icon">{provider.icon}</span>
+                <div className="provider-info">
+                  <div className="provider-name">{provider.name}</div>
+                  <div className="provider-desc">{provider.description}</div>
+                </div>
+                {apiKeys[provider.id] && (
+                  <span className="key-badge">✓ Key Set</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Model Selection */}
+        {!useServerKey && (
+          <div className="form-row mt-12">
+            <label className="form-label">Model</label>
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="select-input"
+            >
+              {currentProvider.models.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Azure-specific fields */}
+        {!useServerKey && selectedProvider === 'azure' && (
+          <>
+            <div className="form-row mt-12">
+              <label className="form-label">Azure Endpoint</label>
+              <input
+                type="text"
+                value={azureEndpoint}
+                onChange={(e) => setAzureEndpoint(e.target.value)}
+                placeholder="https://your-resource.openai.azure.com"
+                className="chat-input input-rounded"
+              />
+            </div>
+            <div className="form-row mt-8">
+              <label className="form-label">Deployment Name</label>
+              <input
+                type="text"
+                value={azureDeploymentName}
+                onChange={(e) => setAzureDeploymentName(e.target.value)}
+                placeholder="gpt-4o-deployment"
+                className="chat-input input-rounded"
+              />
+            </div>
+          </>
+        )}
+
+        {/* API Key Input */}
+        {!useServerKey && (
+          <div className="form-row mt-12">
+            <label className="form-label">
+              API Key
+              <a 
+                href={currentProvider.helpUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="help-link"
+              >
+                Get key →
+              </a>
+            </label>
+            
+            {currentApiKey ? (
+              <div className="key-display">
+                <span className="masked-key">
+                  {showApiKey ? currentApiKey : maskApiKey(currentApiKey)}
+                </span>
+                <div className="key-actions">
+                  <button
+                    className="icon-btn"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    title={showApiKey ? 'Hide' : 'Show'}
+                  >
+                    {showApiKey ? '🙈' : '👁️'}
+                  </button>
+                  <button
+                    className="icon-btn danger"
+                    onClick={() => clearApiKey(selectedProvider)}
+                    title="Remove key"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="key-input-group">
+                <input
+                  type="password"
+                  value={tempApiKey}
+                  onChange={(e) => setTempApiKey(e.target.value)}
+                  placeholder={currentProvider.placeholder}
+                  className="chat-input input-rounded"
+                />
+                <button
+                  className="action-button primary"
+                  onClick={handleSaveApiKey}
+                  disabled={!tempApiKey.trim()}
+                >
+                  Save
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Connection Status & Test */}
+        {!useServerKey && currentApiKey && (
+          <div className="connection-status mt-12">
+            <div className={`status-indicator status-${connectionStatus}`}>
+              {connectionStatus === 'untested' && '○ Not tested'}
+              {connectionStatus === 'testing' && '◐ Testing...'}
+              {connectionStatus === 'connected' && '● Connected'}
+              {connectionStatus === 'error' && '○ Error'}
+            </div>
+            <button
+              className="action-button secondary action-button--sm"
+              onClick={handleTestConnection}
+              disabled={isTesting}
+            >
+              {isTesting ? <Spinner size="tiny" /> : 'Test Connection'}
+            </button>
+          </div>
+        )}
+
+        {lastError && (
+          <div className="error-message mt-8">
+            ⚠️ {lastError}
+          </div>
+        )}
+
+        {/* Security Notice */}
+        <div className="security-notice mt-12">
+          <span className="security-icon">🛡️</span>
+          <span>Keys stored in browser localStorage only. Never transmitted to our servers.</span>
+        </div>
       </div>
 
       {/* Feature Toggles */}
@@ -291,9 +494,11 @@ const SettingsPanel: React.FC = () => {
           ℹ️ About
         </h3>
         <p className="text-small text-muted">
-          Outlook AI Assistant v1.0.0
+          <strong>NEXUS_AI</strong> v1.0.0
           <br />
           Your intelligent email, calendar, and task management companion.
+          <br /><br />
+          Built by <a href="https://github.com/rrrr022" target="_blank" rel="noopener noreferrer">@rrrr022</a>
         </p>
       </div>
     </div>

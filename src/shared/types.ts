@@ -191,6 +191,7 @@ export interface AIRequest {
 
 export interface AIResponse {
   content: string;
+  suggestions?: string[];
   suggestedActions?: SuggestedAction[];
   extractedTasks?: CreateTask[];
   extractedEvents?: CreateCalendarEvent[];

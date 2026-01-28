@@ -1,9 +1,11 @@
 import { AIRequest, AIResponse } from '@shared/types';
 import environment from '../config/environment';
+import { useAPIKeyStore, AIProvider, PROVIDERS } from '../store/apiKeyStore';
 
 /**
- * Service for communicating with the AI backend
- * Supports dynamic port discovery for local development
+ * Service for communicating with AI providers
+ * Supports BYOK (Bring Your Own Key) for direct API calls
+ * Falls back to server proxy when using hosted mode
  */
 class AIService {
   private apiBaseUrl: string | null = null;
@@ -72,7 +74,10 @@ class AIService {
     return this.apiBaseUrl;
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  /**
+   * Make a request through our backend proxy (server key mode)
+   */
+  private async proxyRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const baseUrl = await this.getApiBaseUrl();
     const response = await fetch(`${baseUrl}/api${endpoint}`, {
       ...options,
@@ -83,28 +88,249 @@ class AIService {
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
+      const error = await response.text();
+      throw new Error(`API error: ${response.statusText} - ${error}`);
     }
 
     return response.json();
   }
 
   /**
+   * Make a direct call to an AI provider (BYOK mode)
+   */
+  private async directRequest(
+    provider: AIProvider,
+    apiKey: string,
+    model: string,
+    messages: Array<{ role: string; content: string }>,
+    options: { azureEndpoint?: string; azureDeploymentName?: string } = {}
+  ): Promise<string> {
+    const providerConfig = PROVIDERS.find(p => p.id === provider);
+    
+    if (provider === 'anthropic') {
+      return this.callAnthropic(apiKey, model, messages);
+    } else if (provider === 'azure') {
+      return this.callAzureOpenAI(apiKey, model, messages, options.azureEndpoint!, options.azureDeploymentName!);
+    } else {
+      // OpenAI-compatible API (GitHub Models, OpenAI)
+      const baseUrl = providerConfig?.baseUrl || 'https://api.openai.com/v1';
+      return this.callOpenAICompatible(baseUrl, apiKey, model, messages);
+    }
+  }
+
+  /**
+   * Call OpenAI-compatible APIs (OpenAI, GitHub Models)
+   */
+  private async callOpenAICompatible(
+    baseUrl: string,
+    apiKey: string,
+    model: string,
+    messages: Array<{ role: string; content: string }>
+  ): Promise<string> {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        max_tokens: 1000,
+        temperature: 0.7,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: { message: response.statusText } }));
+      throw new Error(error.error?.message || `API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0]?.message?.content || 'No response generated';
+  }
+
+  /**
+   * Call Anthropic Claude API
+   */
+  private async callAnthropic(
+    apiKey: string,
+    model: string,
+    messages: Array<{ role: string; content: string }>
+  ): Promise<string> {
+    // Extract system message if present
+    const systemMessage = messages.find(m => m.role === 'system');
+    const chatMessages = messages.filter(m => m.role !== 'system');
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 1024,
+        system: systemMessage?.content || 'You are a helpful AI assistant for Microsoft Outlook.',
+        messages: chatMessages.map(m => ({
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: m.content,
+        })),
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: { message: response.statusText } }));
+      throw new Error(error.error?.message || `Anthropic API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.content[0]?.text || 'No response generated';
+  }
+
+  /**
+   * Call Azure OpenAI API
+   */
+  private async callAzureOpenAI(
+    apiKey: string,
+    model: string,
+    messages: Array<{ role: string; content: string }>,
+    endpoint: string,
+    deploymentName: string
+  ): Promise<string> {
+    const url = `${endpoint}/openai/deployments/${deploymentName}/chat/completions?api-version=2024-02-01`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': apiKey,
+      },
+      body: JSON.stringify({
+        messages,
+        max_tokens: 1000,
+        temperature: 0.7,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: { message: response.statusText } }));
+      throw new Error(error.error?.message || `Azure OpenAI error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0]?.message?.content || 'No response generated';
+  }
+
+  /**
    * Send a chat message to the AI
+   * Uses BYOK if user has set their own key, otherwise uses server proxy
    */
   async chat(request: AIRequest): Promise<AIResponse> {
+    const store = useAPIKeyStore.getState();
+    const { selectedProvider, selectedModel, apiKeys, useServerKey, azureEndpoint, azureDeploymentName } = store;
+    const userApiKey = apiKeys[selectedProvider];
+
+    console.log('📤 Sending AI request:', {
+      prompt: request.prompt.substring(0, 50) + '...',
+      provider: selectedProvider,
+      model: selectedModel,
+      mode: !useServerKey && userApiKey ? 'BYOK (Direct)' : 'Server Proxy',
+    });
+
     try {
-      console.log('📤 Sending AI request:', request.prompt.substring(0, 100) + '...');
-      const response = await this.request<AIResponse>('/ai/chat', {
+      // If user has their own key and not using server mode, call directly
+      if (!useServerKey && userApiKey) {
+        const systemPrompt = `You are an AI assistant integrated into Microsoft Outlook. You help users manage their emails, calendar, and tasks efficiently.
+
+Your capabilities:
+- Summarize emails
+- Draft email responses
+- Suggest actions based on email content
+- Help organize and prioritize emails
+- Provide calendar suggestions
+- Help manage tasks
+
+Be concise, professional, and helpful. Format responses with markdown when appropriate.`;
+
+        const messages = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: request.prompt },
+        ];
+
+        const content = await this.directRequest(
+          selectedProvider,
+          userApiKey,
+          selectedModel,
+          messages,
+          { azureEndpoint, azureDeploymentName }
+        );
+
+        console.log('📥 Got direct AI response');
+        return { content };
+      }
+
+      // Otherwise, use our backend proxy
+      const response = await this.proxyRequest<{ response: string; suggestions?: string[] }>('/ai/chat', {
         method: 'POST',
-        body: JSON.stringify(request),
+        body: JSON.stringify({
+          message: request.prompt,
+          context: request.context,
+        }),
       });
-      console.log('📥 Got AI response:', response.content.substring(0, 100) + '...');
-      return response;
+
+      console.log('📥 Got proxied AI response');
+      return { 
+        content: response.response,
+        suggestions: response.suggestions 
+      };
+
     } catch (error) {
       console.error('❌ AI chat error:', error);
-      // Return a fallback response for development
-      return this.getFallbackResponse(request.prompt);
+      // Return a fallback response for development/error cases
+      return this.getFallbackResponse(request.prompt, error);
+    }
+  }
+
+  /**
+   * Test connection to the selected AI provider
+   */
+  async testConnection(): Promise<{ success: boolean; error?: string }> {
+    const store = useAPIKeyStore.getState();
+    const { selectedProvider, selectedModel, apiKeys, azureEndpoint, azureDeploymentName } = store;
+    const userApiKey = apiKeys[selectedProvider];
+
+    if (!userApiKey) {
+      return { success: false, error: 'No API key provided' };
+    }
+
+    try {
+      store.setConnectionStatus('testing');
+
+      const messages = [
+        { role: 'system', content: 'You are a helpful assistant.' },
+        { role: 'user', content: 'Say "Connected!" in one word.' },
+      ];
+
+      await this.directRequest(
+        selectedProvider,
+        userApiKey,
+        selectedModel,
+        messages,
+        { azureEndpoint, azureDeploymentName }
+      );
+
+      store.setConnectionStatus('connected');
+      store.setLastError(null);
+      return { success: true };
+
+    } catch (error: any) {
+      const errorMessage = error.message || 'Connection failed';
+      store.setConnectionStatus('error');
+      store.setLastError(errorMessage);
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -157,10 +383,24 @@ class AIService {
   }
 
   /**
-   * Fallback response for when API is unavailable (development)
+   * Fallback response for when API is unavailable
    */
-  private getFallbackResponse(prompt: string): AIResponse {
+  private getFallbackResponse(prompt: string, error?: any): AIResponse {
     const lowercasePrompt = prompt.toLowerCase();
+    const errorMsg = error?.message || 'Unknown error';
+
+    // If it's an API key error, return helpful message
+    if (errorMsg.includes('401') || errorMsg.includes('unauthorized') || errorMsg.includes('invalid')) {
+      return {
+        content: `⚠️ **API Key Error**\n\nYour API key appears to be invalid or expired.\n\nPlease check:\n1. The key is entered correctly in Settings → API Keys\n2. The key hasn't expired\n3. The key has the required permissions\n\n_Error: ${errorMsg}_`,
+      };
+    }
+
+    if (errorMsg.includes('429') || errorMsg.includes('rate limit')) {
+      return {
+        content: `⚠️ **Rate Limit Reached**\n\nYou've hit the API rate limit. Please wait a moment and try again.\n\n_Error: ${errorMsg}_`,
+      };
+    }
 
     if (lowercasePrompt.includes('summarize')) {
       return {
