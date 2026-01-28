@@ -3,6 +3,7 @@ name: Deploy Backend to Azure Functions
 on:
   push:
     branches:
+      - master
       - main
     paths:
       - 'api/**'
