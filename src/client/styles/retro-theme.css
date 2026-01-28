@@ -2129,3 +2129,73 @@ label {
 .security-icon {
   font-size: 16px;
 }
+
+/* ============================================
+   DOCUMENT EXPORT BUTTONS
+   ============================================ */
+.message-export-buttons {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-dark);
+  flex-wrap: wrap;
+}
+
+.export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-dark);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.export-btn:hover {
+  background: var(--bg-lighter);
+  border-color: var(--neon-green);
+  color: var(--neon-green);
+  box-shadow: var(--shadow-glow-green);
+}
+
+.export-btn:active {
+  transform: scale(0.95);
+}
+
+/* Word button */
+.export-btn:nth-child(1):hover {
+  border-color: #2b579a;
+  color: #2b579a;
+  box-shadow: 0 0 15px rgba(43, 87, 154, 0.4);
+}
+
+/* PDF button */
+.export-btn:nth-child(2):hover {
+  border-color: #ff4444;
+  color: #ff4444;
+  box-shadow: 0 0 15px rgba(255, 68, 68, 0.4);
+}
+
+/* Excel button */
+.export-btn:nth-child(3):hover {
+  border-color: #217346;
+  color: #217346;
+  box-shadow: 0 0 15px rgba(33, 115, 70, 0.4);
+}
+
+/* PowerPoint button */
+.export-btn:nth-child(4):hover {
+  border-color: #d04423;
+  color: #d04423;
+  box-shadow: 0 0 15px rgba(208, 68, 35, 0.4);
+}
+
+.message-content {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}

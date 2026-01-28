@@ -5,6 +5,7 @@ import { useAppStore } from '../store/appStore';
 import { aiService } from '../services/aiService';
 import { outlookService } from '../services/outlookService';
 import { graphService } from '../services/graphService';
+import { documentService, DocumentType } from '../services/documentService';
 import { v4 as uuidv4 } from 'uuid';
 
 const ChatPanel: React.FC = () => {
@@ -368,6 +369,43 @@ Please help the user with their request. If they want a summary, provide a clear
     handleSend(suggestion);
   };
 
+  // Handle document export
+  const handleExport = async (type: DocumentType, content: string) => {
+    try {
+      const title = `AI Response - ${new Date().toLocaleDateString()}`;
+      
+      switch (type) {
+        case 'word':
+          await documentService.createWord(title, content);
+          break;
+        case 'pdf':
+          await documentService.createPDF(title, content);
+          break;
+        case 'excel':
+          await documentService.createExcel(title, content);
+          break;
+        case 'powerpoint':
+          await documentService.createPowerPoint(title, content);
+          break;
+      }
+      
+      addMessage({
+        id: uuidv4(),
+        role: 'assistant',
+        content: `✅ **${type.toUpperCase()} exported!** Check your downloads folder.`,
+        timestamp: new Date(),
+      });
+    } catch (error: any) {
+      console.error('Export error:', error);
+      addMessage({
+        id: uuidv4(),
+        role: 'assistant',
+        content: `❌ Export failed: ${error.message}`,
+        timestamp: new Date(),
+      });
+    }
+  };
+
   return (
     <div className="chat-container">
       {/* Microsoft Sign-in for Full Inbox Access */}
@@ -436,7 +474,40 @@ Please help the user with their request. If they want a summary, provide a clear
               key={message.id}
               className={`chat-message ${message.role}`}
             >
-              {message.content}
+              <div className="message-content">{message.content}</div>
+              {/* Export buttons for AI responses */}
+              {message.role === 'assistant' && message.content.length > 50 && (
+                <div className="message-export-buttons">
+                  <button
+                    className="export-btn"
+                    onClick={() => handleExport('word', message.content)}
+                    title="Export to Word"
+                  >
+                    📄 Word
+                  </button>
+                  <button
+                    className="export-btn"
+                    onClick={() => handleExport('pdf', message.content)}
+                    title="Export to PDF"
+                  >
+                    📕 PDF
+                  </button>
+                  <button
+                    className="export-btn"
+                    onClick={() => handleExport('excel', message.content)}
+                    title="Export to Excel"
+                  >
+                    📊 Excel
+                  </button>
+                  <button
+                    className="export-btn"
+                    onClick={() => handleExport('powerpoint', message.content)}
+                    title="Export to PowerPoint"
+                  >
+                    📽️ PPT
+                  </button>
+                </div>
+              )}
             </div>
           ))
         )}
