@@ -494,11 +494,11 @@ const SettingsPanel: React.FC = () => {
           ℹ️ About
         </h3>
         <p className="text-small text-muted">
-          <strong>NEXUS_AI</strong> v1.0.0
+          <strong>Outlook AI</strong> v1.0.0
           <br />
           Your intelligent email, calendar, and task management companion.
           <br /><br />
-          Built by <a href="https://github.com/rrrr022" target="_blank" rel="noopener noreferrer">@rrrr022</a>
+          Built by <strong>FreedomForged_AI</strong>
         </p>
       </div>
     </div>

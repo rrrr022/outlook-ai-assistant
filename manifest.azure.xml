@@ -8,10 +8,10 @@
   
   <Id>a1b2c3d4-e5f6-7890-abcd-ef1234567890</Id>
   <Version>1.0.0.0</Version>
-  <ProviderName>rrrr022</ProviderName>
+  <ProviderName>FreedomForged_AI</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="NEXUS_AI"/>
-  <Description DefaultValue="Premium AI-powered assistant for intelligent email management, calendar scheduling, and task automation. Built with a retro-modern aesthetic by @rrrr022. Transform your Outlook experience with AI-driven insights and automation."/>
+  <DisplayName DefaultValue="Outlook AI"/>
+  <Description DefaultValue="AI-powered assistant for intelligent email management, calendar scheduling, and task automation. Built by FreedomForged_AI. Transform your Outlook experience with AI-driven insights and automation."/>
   
   <IconUrl DefaultValue="https://zealous-ground-01f6af20f.2.azurestaticapps.net/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://zealous-ground-01f6af20f.2.azurestaticapps.net/assets/icon-64.png"/>
@@ -175,11 +175,11 @@
           <bt:Url id="Taskpane.Url" DefaultValue="https://zealous-ground-01f6af20f.2.azurestaticapps.net/taskpane.html"/>
         </bt:Urls>
         <bt:ShortStrings>
-          <bt:String id="GroupLabel" DefaultValue="NEXUS_AI"/>
-          <bt:String id="TaskpaneButton.Label" DefaultValue="NEXUS_AI"/>
+          <bt:String id="GroupLabel" DefaultValue="Outlook AI"/>
+          <bt:String id="TaskpaneButton.Label" DefaultValue="Outlook AI"/>
         </bt:ShortStrings>
         <bt:LongStrings>
-          <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open NEXUS_AI - Your premium AI-powered assistant for email, calendar, and task management"/>
+          <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open Outlook AI - Your AI-powered assistant for email, calendar, and task management by FreedomForged_AI"/>
         </bt:LongStrings>
       </Resources>
     </VersionOverrides>

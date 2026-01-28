@@ -15,7 +15,7 @@ import { approvalService } from './services/approvalService';
 type TabType = 'chat' | 'email' | 'calendar' | 'tasks' | 'analytics' | 'settings';
 
 // Check if onboarding has been completed
-const ONBOARDING_KEY = 'nexus-ai-onboarding-complete';
+const ONBOARDING_KEY = 'outlook-ai-onboarding-complete';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('chat');
@@ -87,8 +87,8 @@ const App: React.FC = () => {
   return (
     <div className="app-container">
       <header className="app-header">
-        <span className="header-icon">⚡</span>
-        <h1>NEXUS_AI</h1>
+        <span className="header-icon">🤖</span>
+        <h1>Outlook AI</h1>
         <span className="header-version">v1.0</span>
         {pendingApprovals.length > 0 && (
           <div className="pending-badge" title={`${pendingApprovals.length} pending approval(s)`}>
@@ -130,7 +130,7 @@ const App: React.FC = () => {
       {/* Footer with credits */}
       <footer className="app-footer">
         <div className="credits">
-          Built by <a href="https://github.com/rrrr022" target="_blank" rel="noopener noreferrer">@rrrr022</a> • 
+          Built by <span className="brand-name">FreedomForged_AI</span> • 
           <span className="status-indicator">● ONLINE</span>
         </div>
       </footer>

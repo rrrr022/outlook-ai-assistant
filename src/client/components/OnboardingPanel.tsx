@@ -45,7 +45,7 @@ const OnboardingPanel: React.FC<OnboardingProps> = ({ onComplete }) => {
         'Scroll down to "Developer settings" (bottom left)',
         'Click "Personal access tokens" → "Tokens (classic)"',
         'Click "Generate new token (classic)"',
-        'Give it a name like "NEXUS_AI"',
+        'Give it a name like "Outlook AI"',
         'Select expiration (90 days recommended)',
         'No special scopes needed - just click "Generate token"',
         'Copy the token starting with "ghp_" and paste below!',
@@ -71,7 +71,7 @@ const OnboardingPanel: React.FC<OnboardingProps> = ({ onComplete }) => {
         'Sign in or create an account',
         'Click your profile icon → "API keys"',
         'Click "+ Create new secret key"',
-        'Name it "NEXUS_AI" and click "Create"',
+        'Name it "Outlook AI" and click "Create"',
         'Copy the key starting with "sk-" immediately!',
         '⚠️ You won\'t be able to see it again',
         'Add billing info if you haven\'t (Settings → Billing)',
@@ -95,7 +95,7 @@ const OnboardingPanel: React.FC<OnboardingProps> = ({ onComplete }) => {
         'Sign in with your X (Twitter) account',
         'Navigate to API Keys section',
         'Click "Create API Key"',
-        'Name it "NEXUS_AI"',
+        'Name it "Outlook AI"',
         'Copy the generated key',
         'Store it safely - you may not see it again!',
       ],
@@ -118,7 +118,7 @@ const OnboardingPanel: React.FC<OnboardingProps> = ({ onComplete }) => {
         'Sign up or sign in',
         'Go to Settings → API Keys',
         'Click "Create Key"',
-        'Name it "NEXUS_AI"',
+        'Name it "Outlook AI"',
         'Copy the key starting with "sk-ant-"',
         'Add billing info in Settings → Plans',
       ],
@@ -234,16 +234,16 @@ const OnboardingPanel: React.FC<OnboardingProps> = ({ onComplete }) => {
     <div className="onboarding-step welcome-step">
       <div className="welcome-header">
         <div className="logo-container">
-          <span className="logo-icon">⚡</span>
-          <h1 className="logo-text">NEXUS_AI</h1>
+          <span className="logo-icon">🤖</span>
+          <h1 className="logo-text">Outlook AI</h1>
         </div>
-        <p className="welcome-tagline">Your AI-Powered Outlook Command Center</p>
+        <p className="welcome-tagline">by FreedomForged_AI</p>
       </div>
 
       <div className="welcome-intro">
         <p className="intro-text">
           Welcome to the future of email and calendar management. 
-          NEXUS_AI transforms your Outlook into an intelligent assistant 
+          Outlook AI transforms your Outlook into an intelligent assistant 
           that understands, organizes, and acts on your behalf.
         </p>
       </div>
@@ -432,7 +432,7 @@ const OnboardingPanel: React.FC<OnboardingProps> = ({ onComplete }) => {
       </div>
 
       <h2 className="completion-title">You're All Set!</h2>
-      <p className="completion-subtitle">NEXUS_AI is now connected and ready to supercharge your Outlook.</p>
+      <p className="completion-subtitle">Outlook AI is now connected and ready to supercharge your Outlook.</p>
 
       <div className="quick-tips">
         <h3>🚀 Quick Tips to Get Started</h3>
@@ -471,8 +471,8 @@ const OnboardingPanel: React.FC<OnboardingProps> = ({ onComplete }) => {
       </div>
 
       <button className="cta-button primary launch-btn" onClick={handleComplete}>
-        <span className="launch-icon">⚡</span>
-        Launch NEXUS_AI
+        <span className="launch-icon">🤖</span>
+        Launch Outlook AI
       </button>
     </div>
   );

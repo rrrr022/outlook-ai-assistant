@@ -205,7 +205,7 @@ export const useAPIKeyStore = create<APIKeyState>()(
       },
     }),
     {
-      name: 'nexus-ai-keys', // localStorage key
+      name: 'outlook-ai-keys', // localStorage key
       partialize: (state) => ({
         // Only persist these fields
         selectedProvider: state.selectedProvider,
