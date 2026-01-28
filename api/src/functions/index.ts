@@ -2,7 +2,8 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/fu
 import OpenAI from "openai";
 
 // FreedomForged AI for Outlook - Backend API
-// Version: 1.1.0 - Added BYOK support for GitHub Models
+// Version: 1.1.1 - Added BYOK support for GitHub Models (CORS bypass)
+// Last updated: Deployment trigger
 
 // Initialize OpenAI client for GitHub Models (server key mode)
 const openai = new OpenAI({
