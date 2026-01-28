@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Switch, Spinner } from '@fluentui/react-components';
 import { useAppStore } from '../store/appStore';
 import { useAPIKeyStore, PROVIDERS, maskApiKey, AIProvider } from '../store/apiKeyStore';
@@ -41,9 +41,24 @@ const SettingsPanel: React.FC = () => {
   const [showApiKey, setShowApiKey] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
   const [isTesting, setIsTesting] = useState(false);
+  const [modelFilter, setModelFilter] = useState('');
+  const [showModelSelector, setShowModelSelector] = useState(false);
 
   const currentProvider = getCurrentProvider();
   const currentApiKey = apiKeys[selectedProvider] || '';
+
+  // Filter models based on search
+  const filteredModels = useMemo(() => {
+    if (!modelFilter.trim()) return currentProvider.models;
+    const search = modelFilter.toLowerCase();
+    return currentProvider.models.filter(m => 
+      m.name.toLowerCase().includes(search) || 
+      m.id.toLowerCase().includes(search)
+    );
+  }, [currentProvider.models, modelFilter]);
+
+  // Get current model name
+  const currentModelName = currentProvider.models.find(m => m.id === selectedModel)?.name || selectedModel;
 
   const handleAddRule = () => {
     if (!newRuleName.trim()) return;
@@ -168,18 +183,53 @@ const SettingsPanel: React.FC = () => {
         {/* Model Selection */}
         {!useServerKey && (
           <div className="form-row mt-12">
-            <label className="form-label">Model</label>
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              className="select-input"
-            >
-              {currentProvider.models.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.name}
-                </option>
-              ))}
-            </select>
+            <label className="form-label">AI Model</label>
+            <div className="model-selector-container">
+              <button
+                type="button"
+                className="model-selector-btn"
+                onClick={() => setShowModelSelector(!showModelSelector)}
+              >
+                <span className="model-current">{currentModelName}</span>
+                <span className="model-dropdown-icon">{showModelSelector ? '▲' : '▼'}</span>
+              </button>
+              
+              {showModelSelector && (
+                <div className="model-dropdown">
+                  <input
+                    type="text"
+                    placeholder="🔍 Search models..."
+                    value={modelFilter}
+                    onChange={(e) => setModelFilter(e.target.value)}
+                    className="model-search-input"
+                    autoFocus
+                  />
+                  <div className="model-list">
+                    {filteredModels.length === 0 ? (
+                      <div className="model-empty">No models found</div>
+                    ) : (
+                      filteredModels.map((model) => (
+                        <div
+                          key={model.id}
+                          className={`model-item ${selectedModel === model.id ? 'active' : ''}`}
+                          onClick={() => {
+                            setSelectedModel(model.id);
+                            setShowModelSelector(false);
+                            setModelFilter('');
+                          }}
+                        >
+                          <span className="model-name">{model.name}</span>
+                          {selectedModel === model.id && <span className="model-check">✓</span>}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="model-count">
+                    {currentProvider.models.length} models available
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

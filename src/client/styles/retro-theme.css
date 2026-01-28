@@ -2639,3 +2639,166 @@ label {
 .branding-btn:hover {
   box-shadow: var(--shadow-glow-amber) !important;
 }
+
+/* ============================================
+   MODEL SELECTOR - VS Code Style
+   ============================================ */
+.model-selector-container {
+  position: relative;
+  width: 100%;
+}
+
+.model-selector-btn {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-dark);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.model-selector-btn:hover {
+  border-color: var(--neon-green);
+  background: var(--bg-light);
+}
+
+.model-current {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-dropdown-icon {
+  color: var(--text-muted);
+  font-size: 10px;
+  margin-left: 8px;
+}
+
+.model-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--neon-green);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg), var(--shadow-glow-green);
+  z-index: 1000;
+  max-height: 400px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: slideDown 0.15s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.model-search-input {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--bg-medium);
+  border: none;
+  border-bottom: 1px solid var(--border-dark);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+.model-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.model-search-input:focus {
+  background: var(--bg-light);
+}
+
+.model-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 300px;
+}
+
+.model-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.model-list::-webkit-scrollbar-track {
+  background: var(--bg-dark);
+}
+
+.model-list::-webkit-scrollbar-thumb {
+  background: var(--border-dark);
+  border-radius: 3px;
+}
+
+.model-list::-webkit-scrollbar-thumb:hover {
+  background: var(--neon-green-dim);
+}
+
+.model-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border-left: 3px solid transparent;
+}
+
+.model-item:hover {
+  background: var(--bg-light);
+  border-left-color: var(--amber);
+}
+
+.model-item.active {
+  background: var(--neon-green-subtle);
+  border-left-color: var(--neon-green);
+}
+
+.model-name {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.model-item.active .model-name {
+  color: var(--neon-green);
+  font-weight: 500;
+}
+
+.model-check {
+  color: var(--neon-green);
+  font-weight: bold;
+}
+
+.model-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.model-count {
+  padding: 8px 14px;
+  background: var(--bg-medium);
+  border-top: 1px solid var(--border-dark);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}

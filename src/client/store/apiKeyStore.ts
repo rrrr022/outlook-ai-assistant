@@ -18,14 +18,63 @@ export const PROVIDERS: ProviderConfig[] = [
   {
     id: 'github',
     name: 'GitHub Models',
-    description: 'Free tier with GPT-4o, Claude, Llama & more',
+    description: 'Free tier with GPT-4o, Claude, Llama, Mistral & more',
     icon: '🐙',
     baseUrl: 'https://models.inference.ai.azure.com',
     models: [
-      { id: 'gpt-4o', name: 'GPT-4o (Recommended)' },
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Fast)' },
-      { id: 'o1-mini', name: 'o1-mini (Reasoning)' },
-      { id: 'Phi-3.5-MoE-instruct', name: 'Phi-3.5 MoE' },
+      // === OpenAI Models ===
+      { id: 'gpt-4o', name: '🧠 GPT-4o (Recommended)' },
+      { id: 'gpt-4o-mini', name: '🧠 GPT-4o Mini (Fast & Cheap)' },
+      { id: 'o1', name: '🧠 o1 (Advanced Reasoning)' },
+      { id: 'o1-mini', name: '🧠 o1-mini (Fast Reasoning)' },
+      { id: 'o1-preview', name: '🧠 o1-preview (Preview)' },
+      { id: 'o3-mini', name: '🧠 o3-mini (Latest Reasoning)' },
+      
+      // === Anthropic Claude Models ===
+      { id: 'claude-3-5-sonnet', name: '🔮 Claude 3.5 Sonnet (Best Quality)' },
+      { id: 'claude-3-5-sonnet-v2', name: '🔮 Claude 3.5 Sonnet v2' },
+      { id: 'claude-3-opus', name: '🔮 Claude 3 Opus (Most Capable)' },
+      { id: 'claude-3-haiku', name: '🔮 Claude 3 Haiku (Fast)' },
+      
+      // === Meta Llama Models ===
+      { id: 'Meta-Llama-3.1-405B-Instruct', name: '🦙 Llama 3.1 405B (Largest)' },
+      { id: 'Meta-Llama-3.1-70B-Instruct', name: '🦙 Llama 3.1 70B' },
+      { id: 'Meta-Llama-3.1-8B-Instruct', name: '🦙 Llama 3.1 8B (Fast)' },
+      { id: 'Meta-Llama-3-70B-Instruct', name: '🦙 Llama 3 70B' },
+      { id: 'Meta-Llama-3-8B-Instruct', name: '🦙 Llama 3 8B' },
+      { id: 'Llama-3.2-90B-Vision-Instruct', name: '🦙 Llama 3.2 90B Vision' },
+      { id: 'Llama-3.2-11B-Vision-Instruct', name: '🦙 Llama 3.2 11B Vision' },
+      { id: 'Llama-3.3-70B-Instruct', name: '🦙 Llama 3.3 70B (Latest)' },
+      
+      // === Mistral Models ===
+      { id: 'Mistral-Large-2411', name: '🌀 Mistral Large (Latest)' },
+      { id: 'Mistral-Large', name: '🌀 Mistral Large' },
+      { id: 'Mistral-Small', name: '🌀 Mistral Small (Fast)' },
+      { id: 'Mistral-Nemo', name: '🌀 Mistral Nemo' },
+      { id: 'Ministral-3B', name: '🌀 Ministral 3B (Tiny)' },
+      { id: 'Codestral-2501', name: '🌀 Codestral (Code Expert)' },
+      
+      // === Microsoft Phi Models ===
+      { id: 'Phi-4', name: '🔷 Phi-4 (Latest Microsoft)' },
+      { id: 'Phi-3.5-MoE-instruct', name: '🔷 Phi-3.5 MoE' },
+      { id: 'Phi-3.5-mini-instruct', name: '🔷 Phi-3.5 Mini' },
+      { id: 'Phi-3.5-vision-instruct', name: '🔷 Phi-3.5 Vision' },
+      { id: 'Phi-3-medium-128k-instruct', name: '🔷 Phi-3 Medium 128K' },
+      { id: 'Phi-3-mini-128k-instruct', name: '🔷 Phi-3 Mini 128K' },
+      
+      // === Cohere Models ===
+      { id: 'Cohere-command-r-plus-08-2024', name: '💎 Command R+ (Latest)' },
+      { id: 'Cohere-command-r-08-2024', name: '💎 Command R' },
+      { id: 'Cohere-command-r-plus', name: '💎 Command R+ (Aug)' },
+      { id: 'Cohere-command-r', name: '💎 Command R' },
+      
+      // === AI21 Jamba Models ===
+      { id: 'AI21-Jamba-1.5-Large', name: '🔶 Jamba 1.5 Large' },
+      { id: 'AI21-Jamba-1.5-Mini', name: '🔶 Jamba 1.5 Mini' },
+      
+      // === DeepSeek Models ===
+      { id: 'DeepSeek-R1', name: '🌊 DeepSeek R1 (Reasoning)' },
+      { id: 'DeepSeek-V3', name: '🌊 DeepSeek V3' },
     ],
     placeholder: 'ghp_xxxxxxxxxxxxxxxxxxxx',
     helpUrl: 'https://github.com/settings/tokens',
