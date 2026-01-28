@@ -1,10 +1,25 @@
-import { PublicClientApplication, Configuration, AuthenticationResult, SilentRequest, PopupRequest } from '@azure/msal-browser';
 import environment from '../config/environment';
+
+// Type definitions for MSAL (avoid importing the actual module at top level)
+interface MsalConfiguration {
+  auth: { clientId: string; authority: string; redirectUri: string };
+  cache: { cacheLocation: string };
+  system?: { loggerOptions?: { loggerCallback?: (level: number, message: string, containsPii: boolean) => void } };
+}
+
+// Lazy load MSAL with webpack magic comment for true code splitting
+let msalModule: any = null;
+async function loadMsal() {
+  if (!msalModule) {
+    msalModule = await import(/* webpackChunkName: "msal-lib" */ '@azure/msal-browser');
+  }
+  return msalModule;
+}
 
 // Your Azure AD App Registration
 const AZURE_CLIENT_ID = environment.azure.clientId;
 
-const msalConfig: Configuration = {
+const msalConfig: MsalConfiguration = {
   auth: {
     clientId: AZURE_CLIENT_ID,
     authority: environment.azure.authority,
@@ -15,7 +30,7 @@ const msalConfig: Configuration = {
   },
   system: {
     loggerOptions: {
-      loggerCallback: (level, message, containsPii) => {
+      loggerCallback: (level: number, message: string, containsPii: boolean) => {
         if (!containsPii && environment.debug) {
           console.log('[MSAL]', message);
         }
@@ -28,13 +43,9 @@ const msalConfig: Configuration = {
 const graphScopes = ['User.Read', 'Mail.Read', 'Mail.ReadWrite', 'Calendars.Read'];
 
 class MsalService {
-  private msalInstance: PublicClientApplication;
+  private msalInstance: any = null;
   private initialized: boolean = false;
   private initPromise: Promise<void> | null = null;
-
-  constructor() {
-    this.msalInstance = new PublicClientApplication(msalConfig);
-  }
 
   /**
    * Initialize MSAL - must be called before any auth operations
@@ -46,17 +57,19 @@ class MsalService {
       return this.initPromise;
     }
 
-    this.initPromise = this.msalInstance.initialize().then(() => {
+    this.initPromise = (async () => {
+      const { PublicClientApplication } = await loadMsal();
+      this.msalInstance = new PublicClientApplication(msalConfig);
+      await this.msalInstance.initialize();
       this.initialized = true;
       console.log('✅ MSAL initialized successfully');
       
       // Handle redirect callback
-      return this.msalInstance.handleRedirectPromise().then((response) => {
-        if (response) {
-          console.log('✅ Login successful via redirect');
-        }
-      });
-    });
+      const response = await this.msalInstance.handleRedirectPromise();
+      if (response) {
+        console.log('✅ Login successful via redirect');
+      }
+    })();
 
     return this.initPromise;
   }
@@ -65,6 +78,7 @@ class MsalService {
    * Check if user is signed in
    */
   isSignedIn(): boolean {
+    if (!this.msalInstance) return false;
     const accounts = this.msalInstance.getAllAccounts();
     return accounts.length > 0;
   }
@@ -73,6 +87,7 @@ class MsalService {
    * Get current account
    */
   getAccount() {
+    if (!this.msalInstance) return null;
     const accounts = this.msalInstance.getAllAccounts();
     return accounts.length > 0 ? accounts[0] : null;
   }
@@ -80,10 +95,11 @@ class MsalService {
   /**
    * Sign in with popup
    */
-  async signIn(): Promise<AuthenticationResult | null> {
+  async signIn(): Promise<any | null> {
     await this.initialize();
+    if (!this.msalInstance) throw new Error('MSAL not initialized');
 
-    const request: PopupRequest = {
+    const request = {
       scopes: graphScopes,
       prompt: 'select_account',
     };
@@ -103,6 +119,7 @@ class MsalService {
    */
   async signOut(): Promise<void> {
     await this.initialize();
+    if (!this.msalInstance) return;
     
     const account = this.getAccount();
     if (account) {
@@ -118,6 +135,7 @@ class MsalService {
    */
   async getAccessToken(): Promise<string | null> {
     await this.initialize();
+    if (!this.msalInstance) return null;
 
     const account = this.getAccount();
     if (!account) {
@@ -125,7 +143,7 @@ class MsalService {
       return null;
     }
 
-    const silentRequest: SilentRequest = {
+    const silentRequest = {
       scopes: graphScopes,
       account,
     };

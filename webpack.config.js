@@ -93,15 +93,46 @@ module.exports = {
       'process.env.DEFAULT_SERVER_PORT': JSON.stringify(DEFAULT_SERVER_PORT),
     }),
   ],
-  // Code splitting for lazy-loaded document libraries (docx, exceljs)
+  // Optimized code splitting
   optimization: {
+    minimize: isProduction,
     splitChunks: {
-      chunks: 'async',
+      chunks: 'all',
+      maxInitialRequests: 25,
+      minSize: 20000,
       cacheGroups: {
+        // Separate vendor chunks
+        react: {
+          test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/,
+          name: 'vendor-react',
+          chunks: 'all',
+          priority: 40,
+        },
+        fluentui: {
+          test: /[\\/]node_modules[\\/]@fluentui[\\/]/,
+          name: 'vendor-fluentui',
+          chunks: 'all',
+          priority: 30,
+        },
+        // Heavy document libs - async only
         documentLibs: {
-          test: /[\\/]node_modules[\\/](docx|exceljs)[\\/]/,
+          test: /[\\/]node_modules[\\/](docx|exceljs|pdfmake|pptxgenjs)[\\/]/,
           name: 'document-libs',
           chunks: 'async',
+          priority: 20,
+        },
+        // MSAL - async
+        msal: {
+          test: /[\\/]node_modules[\\/]@azure[\\/]msal/,
+          name: 'vendor-msal',
+          chunks: 'async',
+          priority: 15,
+        },
+        // Other vendors
+        vendors: {
+          test: /[\\/]node_modules[\\/]/,
+          name: 'vendors',
+          chunks: 'all',
           priority: 10,
         },
       },

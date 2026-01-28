@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Spinner } from '@fluentui/react-components';
 import ChatPanel from './components/ChatPanel';
 import EmailPanel from './components/EmailPanel';
 import CalendarPanel from './components/CalendarPanel';
@@ -8,6 +7,7 @@ import SettingsPanel from './components/SettingsPanel';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import ApprovalModal from './components/ApprovalModal';
 import OnboardingPanel from './components/OnboardingPanel';
+import { Spinner } from './components/ui/NativeComponents';
 import { useAppStore } from './store/appStore';
 import { useAPIKeyStore } from './store/apiKeyStore';
 import { approvalService } from './services/approvalService';

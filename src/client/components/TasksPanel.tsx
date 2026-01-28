@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Spinner, Checkbox } from '@fluentui/react-components';
+import { Spinner, Checkbox } from './ui/NativeComponents';
 import { useAppStore } from '../store/appStore';
 import { aiService } from '../services/aiService';
 import { Task } from '@shared/types';

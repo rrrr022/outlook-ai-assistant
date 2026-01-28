@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Spinner } from '@fluentui/react-components';
+import { Button, Spinner } from './ui/NativeComponents';
 import { useAppStore } from '../store/appStore';
 import { outlookService } from '../services/outlookService';
 import { aiService } from '../services/aiService';

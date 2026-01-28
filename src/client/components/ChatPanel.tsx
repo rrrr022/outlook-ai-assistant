@@ -1,21 +1,28 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button, Input } from '@fluentui/react-components';
-import { Send24Regular } from '@fluentui/react-icons';
+import { Button, Input, SendIcon } from './ui/NativeComponents';
 import { useAppStore } from '../store/appStore';
 import { aiService } from '../services/aiService';
 import { outlookService } from '../services/outlookService';
-import { graphService } from '../services/graphService';
-import { documentService, DocumentType, TemplateType } from '../services/documentService';
 import { brandingService, UserBranding } from '../services/brandingService';
 import BrandingPanel from './BrandingPanel';
 import { v4 as uuidv4 } from 'uuid';
+
+// Lazy load graph service to avoid bundling MSAL
+const loadGraphService = () => import(/* webpackChunkName: "graph-service" */ '../services/graphService');
+
+// Types defined inline to avoid importing documentService at build time
+type DocumentType = 'word' | 'pdf' | 'excel' | 'powerpoint';
+type TemplateType = 'professional-report' | 'meeting-summary' | 'project-status' | 'data-analysis' | 'sales-pitch' | 'email-summary' | 'action-items' | 'custom';
+
+// Lazy load document service (reduces initial bundle by ~2MB)
+const loadDocumentService = () => import(/* webpackChunkName: "document-service" */ '../services/documentService');
 
 const ChatPanel: React.FC = () => {
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [isSignedIn, setIsSignedIn] = useState(graphService.isSignedIn);
+  const [isSignedIn, setIsSignedIn] = useState(false); // Default false, will check on mount
   const [userName, setUserName] = useState<string | null>(null);
   const [showBranding, setShowBranding] = useState(false);
   const [userBranding, setUserBranding] = useState<UserBranding>(brandingService.load());
@@ -39,18 +46,23 @@ const ChatPanel: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  // Check sign-in status on mount
+  // Check sign-in status on mount (lazy load graphService)
   useEffect(() => {
-    setIsSignedIn(graphService.isSignedIn);
-    if (graphService.isSignedIn) {
-      const userInfo = graphService.getUserInfo();
-      setUserName(userInfo?.name || null);
-    }
+    const checkSignIn = async () => {
+      const { graphService } = await loadGraphService();
+      setIsSignedIn(graphService.isSignedIn);
+      if (graphService.isSignedIn) {
+        const userInfo = graphService.getUserInfo();
+        setUserName(userInfo?.name || null);
+      }
+    };
+    checkSignIn();
   }, []);
 
   // Handle Microsoft sign-in
   const handleMicrosoftSignIn = async () => {
     try {
+      const { graphService } = await loadGraphService();
       const success = await graphService.signIn();
       if (success) {
         setIsSignedIn(true);
@@ -75,6 +87,7 @@ const ChatPanel: React.FC = () => {
 
   // Handle sign out
   const handleSignOut = async () => {
+    const { graphService } = await loadGraphService();
     await graphService.signOut();
     setIsSignedIn(false);
     setUserName(null);
@@ -182,6 +195,9 @@ const ChatPanel: React.FC = () => {
       // Get current email context - THIS WORKS without Graph API
       const emailContext = await outlookService.getCurrentEmailContext();
       const calendarContext = await outlookService.getUpcomingEvents(7);
+      
+      // Lazy load graph service for inbox scanning
+      const { graphService } = await loadGraphService();
       
       console.log('Email context:', emailContext ? `Got email: ${emailContext.subject}` : 'No email selected');
       console.log('Graph signed in:', graphService.isSignedIn);
@@ -379,6 +395,9 @@ Please help the user with their request. If they want a summary, provide a clear
   // Handle document export with auto-template detection
   const handleExport = async (type: DocumentType, content: string) => {
     try {
+      // Lazy load document service when needed
+      const { documentService } = await loadDocumentService();
+      
       const detectedTemplate = documentService.detectTemplate(content);
       const templateInfo = documentService.templates.find(t => t.id === detectedTemplate);
       const title = `${templateInfo?.name || 'AI Response'} - ${new Date().toLocaleDateString()}`;

@@ -1,5 +1,7 @@
 import { EmailSummary, EmailDetails, CalendarEvent, CreateCalendarEvent } from '@shared/types';
-import { graphService } from './graphService';
+
+// Lazy load graph service to avoid bundling MSAL at startup
+const loadGraphService = () => import(/* webpackChunkName: "graph-service" */ './graphService');
 
 /**
  * Service for interacting with Outlook via Office.js API
@@ -78,6 +80,7 @@ class OutlookService {
 
     try {
       // Use Graph API for real inbox access
+      const { graphService } = await loadGraphService();
       const emails = await graphService.getInboxEmails(count);
       if (emails && emails.length > 0) {
         return emails;
@@ -100,6 +103,7 @@ class OutlookService {
 
     try {
       // Use Graph API for real calendar access
+      const { graphService } = await loadGraphService();
       const events = await graphService.getCalendarEvents(days);
       if (events && events.length > 0) {
         return events;

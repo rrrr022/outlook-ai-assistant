@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Switch, Spinner } from '@fluentui/react-components';
+import { Switch, Spinner } from './ui/NativeComponents';
 import { useAppStore } from '../store/appStore';
 import { useAPIKeyStore, PROVIDERS, maskApiKey, AIProvider } from '../store/apiKeyStore';
 import { AutomationRule } from '@shared/types';
@@ -331,7 +331,7 @@ const SettingsPanel: React.FC = () => {
               onClick={handleTestConnection}
               disabled={isTesting}
             >
-              {isTesting ? <Spinner size="tiny" /> : 'Test Connection'}
+              {isTesting ? <Spinner size="small" /> : 'Test Connection'}
             </button>
           </div>
         )}
@@ -362,7 +362,7 @@ const SettingsPanel: React.FC = () => {
           </div>
           <Switch
             checked={settings.autoReplyEnabled}
-            onChange={(_, data) => updateSettings({ autoReplyEnabled: data.checked })}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ autoReplyEnabled: e.target.checked })}
           />
         </div>
 
@@ -373,7 +373,7 @@ const SettingsPanel: React.FC = () => {
           </div>
           <Switch
             checked={settings.calendarSyncEnabled}
-            onChange={(_, data) => updateSettings({ calendarSyncEnabled: data.checked })}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ calendarSyncEnabled: e.target.checked })}
           />
         </div>
 
@@ -384,7 +384,7 @@ const SettingsPanel: React.FC = () => {
           </div>
           <Switch
             checked={settings.taskExtractionEnabled}
-            onChange={(_, data) => updateSettings({ taskExtractionEnabled: data.checked })}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ taskExtractionEnabled: e.target.checked })}
           />
         </div>
       </div>
@@ -405,7 +405,7 @@ const SettingsPanel: React.FC = () => {
           </div>
           <Switch
             checked={settings.requireApprovalForEmails}
-            onChange={(_, data) => updateSettings({ requireApprovalForEmails: data.checked })}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ requireApprovalForEmails: e.target.checked })}
           />
         </div>
 
@@ -416,7 +416,7 @@ const SettingsPanel: React.FC = () => {
           </div>
           <Switch
             checked={settings.requireApprovalForMeetings}
-            onChange={(_, data) => updateSettings({ requireApprovalForMeetings: data.checked })}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ requireApprovalForMeetings: e.target.checked })}
           />
         </div>
 
@@ -427,7 +427,7 @@ const SettingsPanel: React.FC = () => {
           </div>
           <Switch
             checked={settings.requireApprovalForAutomations}
-            onChange={(_, data) => updateSettings({ requireApprovalForAutomations: data.checked })}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ requireApprovalForAutomations: e.target.checked })}
           />
         </div>
       </div>
@@ -493,8 +493,8 @@ const SettingsPanel: React.FC = () => {
               <div className="rule-actions">
                 <Switch
                   checked={rule.isEnabled}
-                  onChange={(_, data) => 
-                    updateAutomationRule(rule.id, { isEnabled: data.checked })
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                    updateAutomationRule(rule.id, { isEnabled: e.target.checked })
                   }
                 />
                 <button

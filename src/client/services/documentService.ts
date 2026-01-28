@@ -21,20 +21,21 @@ export type TemplateType =
   | 'action-items'
   | 'custom';
 
-// Lazy-loaded modules (reduces initial bundle by ~50MB)
-let docxModule: typeof import('docx') | null = null;
-let excelModule: typeof import('exceljs') | null = null;
+// Lazy-loaded modules with webpack magic comments for true code splitting
+// These will be loaded on-demand only when document generation is requested
+let docxModule: any = null;
+let excelModule: any = null;
 
 async function loadDocx() {
   if (!docxModule) {
-    docxModule = await import('docx');
+    docxModule = await import(/* webpackChunkName: "docx-lib" */ 'docx');
   }
   return docxModule;
 }
 
 async function loadExcel() {
   if (!excelModule) {
-    excelModule = await import('exceljs');
+    excelModule = await import(/* webpackChunkName: "excel-lib" */ 'exceljs');
   }
   return excelModule;
 }
@@ -502,7 +503,7 @@ async function generateExcel(title: string, content: string, options: DocumentOp
     tableData.forEach((row, idx) => {
       const excelRow = dataSheet.addRow(row);
       if (idx === 0) {
-        excelRow.eachCell(cell => {
+        excelRow.eachCell((cell: any) => {
           cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + colors.primary } };
           cell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -514,7 +515,7 @@ async function generateExcel(title: string, content: string, options: DocumentOp
           };
         });
       } else {
-        excelRow.eachCell(cell => {
+        excelRow.eachCell((cell: any) => {
           cell.border = {
             top: { style: 'thin', color: { argb: 'FFE0E0E0' } },
             bottom: { style: 'thin', color: { argb: 'FFE0E0E0' } },
@@ -529,7 +530,7 @@ async function generateExcel(title: string, content: string, options: DocumentOp
     });
     
     // Auto-width columns
-    dataSheet.columns.forEach(col => {
+    dataSheet.columns.forEach((col: any) => {
       col.width = 18;
     });
   } else {
@@ -554,7 +555,7 @@ async function generateExcel(title: string, content: string, options: DocumentOp
     numbers.forEach(n => chartSheet.addRow([n.label, n.value]));
     
     // Style the chart data
-    chartSheet.getRow(3).eachCell(cell => {
+    chartSheet.getRow(3).eachCell((cell: any) => {
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + colors.primary } };
     });
