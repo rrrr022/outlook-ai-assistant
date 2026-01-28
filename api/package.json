@@ -1,6 +1,6 @@
 {
   "name": "outlook-ai-api",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Azure Functions API for Outlook AI Assistant",
   "main": "dist/src/functions/index.js",
   "scripts": {
