@@ -6,6 +6,8 @@ import { aiService } from '../services/aiService';
 import { outlookService } from '../services/outlookService';
 import { graphService } from '../services/graphService';
 import { documentService, DocumentType, TemplateType } from '../services/documentService';
+import { brandingService, UserBranding } from '../services/brandingService';
+import BrandingPanel from './BrandingPanel';
 import { v4 as uuidv4 } from 'uuid';
 
 const ChatPanel: React.FC = () => {
@@ -15,6 +17,8 @@ const ChatPanel: React.FC = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSignedIn, setIsSignedIn] = useState(graphService.isSignedIn);
   const [userName, setUserName] = useState<string | null>(null);
+  const [showBranding, setShowBranding] = useState(false);
+  const [userBranding, setUserBranding] = useState<UserBranding>(brandingService.load());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { messages, addMessage, currentEmail, tasks } = useAppStore();
 
@@ -83,18 +87,21 @@ const ChatPanel: React.FC = () => {
   };
 
   const quickActions = [
-    { icon: '�', label: 'Review Inbox', action: 'review-inbox' },
+    { icon: '📥', label: 'Review Inbox', action: 'review-inbox' },
     { icon: '📅', label: 'My Calendar', action: 'plan-day' },
     { icon: '📋', label: 'My Tasks', action: 'show-tasks' },
     { icon: '🔍', label: 'Search Emails', action: 'search-emails' },
     { icon: '✉️', label: 'Compose Email', action: 'compose' },
-    { icon: '📝', label: 'Summarize Email', action: 'summarize' },
+    { icon: '🎨', label: 'My Branding', action: 'branding' },
   ];
 
   const handleQuickAction = async (action: string) => {
     let prompt = '';
     
     switch (action) {
+      case 'branding':
+        setShowBranding(true);
+        return;
       case 'summarize':
         if (currentEmail) {
           prompt = `Please summarize this email from ${currentEmail.sender}: "${currentEmail.subject}"`;
@@ -419,8 +426,28 @@ Please help the user with their request. If they want a summary, provide a clear
     }
   };
 
+  // Handle branding save
+  const handleBrandingSave = (branding: UserBranding) => {
+    setUserBranding(branding);
+    setShowBranding(false);
+    addMessage({
+      id: uuidv4(),
+      role: 'assistant',
+      content: `✅ **Branding saved!** 🎨\n\nYour custom branding will now be used in all document exports:\n• Company: **${branding.companyName || 'Not set'}**\n• Colors: Primary ${branding.primaryColor}\n• Logo: ${branding.logoUrl ? '✓ Uploaded' : 'Not set'}\n\nTry exporting a document to see your branding in action!`,
+      timestamp: new Date(),
+    });
+  };
+
   return (
     <div className="chat-container">
+      {/* Branding Panel Modal */}
+      {showBranding && (
+        <BrandingPanel
+          onClose={() => setShowBranding(false)}
+          onSave={handleBrandingSave}
+        />
+      )}
+      
       {/* Microsoft Sign-in for Full Inbox Access */}
       <div className="microsoft-auth-bar">
         {!isSignedIn ? (
