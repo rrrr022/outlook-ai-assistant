@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AppSource Asset Generator - Outlook AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a24 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        h1 {
+            color: #39ff14;
+            text-align: center;
+            margin-bottom: 30px;
+            text-shadow: 0 0 10px rgba(57, 255, 20, 0.5);
+        }
+        
+        h2 {
+            color: #ffb000;
+            margin: 20px 0 15px;
+            border-bottom: 1px solid #39ff14;
+            padding-bottom: 10px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .section {
+            background: rgba(26, 26, 36, 0.8);
+            border: 1px solid #39ff14;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #39ff14, #32cd32);
+            color: #0a0a0f;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            box-shadow: 0 0 20px rgba(57, 255, 20, 0.5);
+            transform: translateY(-2px);
+        }
+        
+        .btn-amber {
+            background: linear-gradient(135deg, #ffb000, #ff8c00);
+        }
+        
+        .preview-container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        
+        .preview-box {
+            background: #0a0a0f;
+            border: 2px solid #39ff14;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .preview-box img, .preview-box canvas {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .preview-box p {
+            margin-top: 10px;
+            color: #39ff14;
+        }
+        
+        #iconPreview {
+            width: 300px;
+            height: 300px;
+        }
+        
+        .checklist {
+            list-style: none;
+        }
+        
+        .checklist li {
+            padding: 10px;
+            margin: 5px 0;
+            background: rgba(57, 255, 20, 0.1);
+            border-left: 3px solid #39ff14;
+            border-radius: 0 5px 5px 0;
+        }
+        
+        .checklist li.done {
+            border-left-color: #32cd32;
+            background: rgba(50, 205, 50, 0.2);
+        }
+        
+        .checklist li.pending {
+            border-left-color: #ffb000;
+            background: rgba(255, 176, 0, 0.1);
+        }
+        
+        .status {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .status.done { color: #32cd32; }
+        .status.pending { color: #ffb000; }
+        
+        code {
+            background: #0a0a0f;
+            padding: 2px 8px;
+            border-radius: 4px;
+            color: #39ff14;
+            font-family: 'Consolas', monospace;
+        }
+        
+        .info-box {
+            background: rgba(255, 176, 0, 0.1);
+            border: 1px solid #ffb000;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .info-box h3 {
+            color: #ffb000;
+            margin-bottom: 10px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        
+        th, td {
+            border: 1px solid #39ff14;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        th {
+            background: rgba(57, 255, 20, 0.2);
+            color: #39ff14;
+        }
+        
+        a {
+            color: #39ff14;
+        }
+        
+        .screenshot-frame {
+            width: 1366px;
+            height: 768px;
+            border: 3px solid #39ff14;
+            background: #0a0a0f;
+            overflow: hidden;
+            margin: 20px auto;
+        }
+        
+        #screenshotCanvas {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 AppSource Submission Tool</h1>
+        <p style="text-align: center; margin-bottom: 30px; font-size: 18px;">
+            <strong>Outlook AI by FreedomForged_AI</strong> - Asset Generator
+        </p>
+        
+        <!-- Submission Checklist -->
+        <div class="section">
+            <h2>📋 Submission Checklist</h2>
+            <ul class="checklist">
+                <li class="done"><span class="status done">✓</span> Manifest configured (manifest.azure.xml)</li>
+                <li class="done"><span class="status done">✓</span> Privacy Policy URL</li>
+                <li class="done"><span class="status done">✓</span> Terms of Service URL</li>
+                <li class="done"><span class="status done">✓</span> Support URL</li>
+                <li class="done"><span class="status done">✓</span> App deployed to production</li>
+                <li class="done"><span class="status done">✓</span> Icons (16, 32, 64, 80px)</li>
+                <li class="pending"><span class="status pending">⏳</span> 300x300 App Icon (generate below)</li>
+                <li class="pending"><span class="status pending">⏳</span> Screenshots (1366x768)</li>
+                <li class="pending"><span class="status pending">⏳</span> Partner Center Account ($99)</li>
+            </ul>
+        </div>
+        
+        <!-- Icon Generator -->
+        <div class="section">
+            <h2>🎨 Step 1: Generate 300x300 Icon</h2>
+            <p>Click the button below to generate and download your app icon.</p>
+            
+            <div class="preview-container">
+                <div class="preview-box">
+                    <canvas id="iconCanvas" width="300" height="300"></canvas>
+                    <p>300 x 300 PNG</p>
+                </div>
+            </div>
+            
+            <button class="btn" onclick="generateIcon()">🔄 Generate Icon</button>
+            <button class="btn btn-amber" onclick="downloadIcon()">⬇️ Download PNG</button>
+        </div>
+        
+        <!-- Screenshot Guide -->
+        <div class="section">
+            <h2>📸 Step 2: Take Screenshots</h2>
+            
+            <div class="info-box">
+                <h3>Screenshot Requirements</h3>
+                <ul>
+                    <li>Size: <code>1366 x 768</code> pixels</li>
+                    <li>Format: PNG or JPEG</li>
+                    <li>Quantity: 3-5 screenshots</li>
+                    <li>Content: Show key features in action</li>
+                </ul>
+            </div>
+            
+            <h3 style="color: #39ff14; margin-top: 20px;">Recommended Screenshots:</h3>
+            <table>
+                <tr>
+                    <th>#</th>
+                    <th>Screenshot</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>1</td>
+                    <td>AI Chat Interface</td>
+                    <td>Show the main chat panel with a conversation</td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td>Email Summary</td>
+                    <td>AI summarizing an email thread</td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td>Document Generation</td>
+                    <td>Generating a Word doc or PDF</td>
+                </tr>
+                <tr>
+                    <td>4</td>
+                    <td>Branding Settings</td>
+                    <td>Custom colors and logo setup</td>
+                </tr>
+                <tr>
+                    <td>5</td>
+                    <td>API Key Setup</td>
+                    <td>BYOK configuration (blur any real keys!)</td>
+                </tr>
+            </table>
+            
+            <div class="info-box">
+                <h3>How to Take Screenshots</h3>
+                <ol style="margin-left: 20px; line-height: 2;">
+                    <li>Open your app in a browser: <a href="https://zealous-ground-01f6af20f.2.azurestaticapps.net" target="_blank">Live App</a></li>
+                    <li>Resize browser window to 1366x768 (use browser dev tools or extension)</li>
+                    <li>Press <code>Win + Shift + S</code> (Windows) or use Snipping Tool</li>
+                    <li>Select the full browser content area</li>
+                    <li>Save as PNG with descriptive names</li>
+                </ol>
+            </div>
+            
+            <button class="btn" onclick="window.open('https://zealous-ground-01f6af20f.2.azurestaticapps.net', '_blank')">🌐 Open Live App</button>
+        </div>
+        
+        <!-- Partner Center Registration -->
+        <div class="section">
+            <h2>🏢 Step 3: Register at Partner Center</h2>
+            
+            <div class="info-box">
+                <h3>Registration Details</h3>
+                <ul style="line-height: 2;">
+                    <li><strong>Cost:</strong> $99 one-time fee</li>
+                    <li><strong>Time:</strong> ~5-10 minutes to register</li>
+                    <li><strong>Requires:</strong> Microsoft account, business info</li>
+                </ul>
+            </div>
+            
+            <button class="btn btn-amber" onclick="window.open('https://partner.microsoft.com/dashboard', '_blank')">
+                🚀 Go to Partner Center
+            </button>
+            
+            <h3 style="color: #39ff14; margin-top: 20px;">Registration Steps:</h3>
+            <ol style="margin-left: 20px; line-height: 2;">
+                <li>Sign in with your Microsoft account</li>
+                <li>Click "Office Store" or "Office add-ins"</li>
+                <li>Complete developer profile</li>
+                <li>Pay $99 registration fee</li>
+                <li>Wait for account approval (usually same day)</li>
+            </ol>
+        </div>
+        
+        <!-- App Listing Content -->
+        <div class="section">
+            <h2>📝 Step 4: App Listing Content (Ready to Copy)</h2>
+            
+            <div class="info-box">
+                <h3>App Name</h3>
+                <code id="appName">Outlook AI by FreedomForged_AI</code>
+                <button class="btn" style="padding: 5px 10px; font-size: 12px;" onclick="copyText('appName')">Copy</button>
+            </div>
+            
+            <div class="info-box">
+                <h3>Short Description (100 chars)</h3>
+                <p id="shortDesc">AI-powered email assistant with BYOK support. Summarize, compose, and automate with your own API keys.</p>
+                <button class="btn" style="padding: 5px 10px; font-size: 12px;" onclick="copyText('shortDesc')">Copy</button>
+            </div>
+            
+            <div class="info-box">
+                <h3>Long Description</h3>
+                <div id="longDesc">
+<p><strong>Outlook AI by FreedomForged_AI</strong> transforms your Outlook experience with powerful AI capabilities - using YOUR choice of AI provider.</p>
+
+<p><strong>🔑 BRING YOUR OWN KEY (BYOK)</strong></p>
+<ul>
+<li>GitHub Models (FREE tier available!)</li>
+<li>OpenAI GPT-4</li>
+<li>Anthropic Claude</li>
+<li>xAI Grok</li>
+<li>Azure OpenAI</li>
+</ul>
+
+<p><strong>✨ KEY FEATURES</strong></p>
+<ul>
+<li>📧 Smart Email Summaries - Instantly understand long email threads</li>
+<li>✍️ AI-Powered Composition - Write professional emails in seconds</li>
+<li>📄 Document Generation - Create Word, Excel, PDF, PowerPoint</li>
+<li>🎨 Universal Branding - Custom colors, logos, and contact info</li>
+<li>📋 7 Smart Templates - Professional reports, meeting summaries, and more</li>
+</ul>
+
+<p><strong>🔒 PRIVACY FIRST</strong></p>
+<p>Your API keys stay with you. We never store or transmit your keys to our servers.</p>
+
+<p><strong>🚀 GET STARTED FREE</strong></p>
+<p>Use GitHub Models for free AI access, or connect your existing API keys.</p>
+                </div>
+                <button class="btn" style="padding: 5px 10px; font-size: 12px;" onclick="copyText('longDesc')">Copy</button>
+            </div>
+            
+            <div class="info-box">
+                <h3>Keywords</h3>
+                <p id="keywords">AI, email assistant, GPT, Claude, productivity, automation, document generation, BYOK, email summary, compose, write</p>
+                <button class="btn" style="padding: 5px 10px; font-size: 12px;" onclick="copyText('keywords')">Copy</button>
+            </div>
+            
+            <div class="info-box">
+                <h3>URLs</h3>
+                <table>
+                    <tr>
+                        <td>Privacy Policy</td>
+                        <td><code>https://zealous-ground-01f6af20f.2.azurestaticapps.net/privacy-policy.html</code></td>
+                    </tr>
+                    <tr>
+                        <td>Terms of Service</td>
+                        <td><code>https://zealous-ground-01f6af20f.2.azurestaticapps.net/terms-of-service.html</code></td>
+                    </tr>
+                    <tr>
+                        <td>Support</td>
+                        <td><code>https://zealous-ground-01f6af20f.2.azurestaticapps.net/support.html</code></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Final Submission -->
+        <div class="section">
+            <h2>🎯 Step 5: Submit to AppSource</h2>
+            <ol style="margin-left: 20px; line-height: 2.5;">
+                <li>Log in to <a href="https://partner.microsoft.com/dashboard" target="_blank">Partner Center</a></li>
+                <li>Go to <strong>Office Store</strong> → <strong>Overview</strong></li>
+                <li>Click <strong>"Create new app"</strong></li>
+                <li>Select <strong>"Office Add-in"</strong></li>
+                <li>Upload your <code>manifest.azure.xml</code></li>
+                <li>Fill in app details (use content above)</li>
+                <li>Upload icon and screenshots</li>
+                <li>Select pricing: <strong>Free</strong> (or Freemium if available)</li>
+                <li>Submit for review</li>
+            </ol>
+            
+            <div class="info-box" style="background: rgba(57, 255, 20, 0.1); border-color: #39ff14;">
+                <h3 style="color: #39ff14;">⏱️ Expected Timeline</h3>
+                <ul style="line-height: 2;">
+                    <li><strong>Initial Review:</strong> 3-7 business days</li>
+                    <li><strong>If changes needed:</strong> Fix and resubmit (1-3 days)</li>
+                    <li><strong>Approval to Live:</strong> 1-2 days after approval</li>
+                    <li><strong>Total:</strong> ~1-2 weeks</li>
+                </ul>
+            </div>
+            
+            <button class="btn btn-amber" style="font-size: 20px; padding: 15px 40px;" onclick="window.open('https://partner.microsoft.com/dashboard', '_blank')">
+                🚀 Start Submission
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        // Load and generate icon
+        function generateIcon() {
+            const canvas = document.getElementById('iconCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Load SVG
+            const img = new Image();
+            img.onload = function() {
+                ctx.clearRect(0, 0, 300, 300);
+                ctx.drawImage(img, 0, 0, 300, 300);
+            };
+            img.src = 'src/client/assets/icon-300.svg';
+        }
+        
+        function downloadIcon() {
+            const canvas = document.getElementById('iconCanvas');
+            const link = document.createElement('a');
+            link.download = 'outlook-ai-icon-300x300.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+        
+        function copyText(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.innerText || element.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Copied to clipboard!');
+            });
+        }
+        
+        // Generate icon on page load
+        window.onload = generateIcon;
+    </script>
+</body>
+</html>

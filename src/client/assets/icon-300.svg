@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 300">
+  <rect width="100%" height="100%" fill="#111111"/>
+  <text x="50%" y="45%" text-anchor="middle"
+        font-family="Inter, Helvetica, Arial, sans-serif"
+        font-size="96"
+        fill="#E6E6E6"
+        font-weight="600">
+    Freedom
+  </text>
+  <text x="50%" y="70%" text-anchor="middle"
+        font-family="Inter, Helvetica, Arial, sans-serif"
+        font-size="110"
+        fill="#E6E6E6"
+        font-weight="700">
+    Forged
+  </text>
+  <text x="50%" y="88%" text-anchor="middle"
+        font-family="Inter, Helvetica, Arial, sans-serif"
+        font-size="72"
+        fill="#B0B0B0"
+        font-weight="500">
+    AI
+  </text>
+</svg>
