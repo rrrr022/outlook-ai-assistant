@@ -9,6 +9,8 @@ import './styles/retro-theme.css';
 const renderApp = () => {
   const container = document.getElementById('root');
   if (container) {
+    // Clear loading screen
+    container.innerHTML = '';
     const root = createRoot(container);
     root.render(
       <React.StrictMode>
@@ -20,14 +22,35 @@ const renderApp = () => {
   }
 };
 
-// Initialize Office.js if available, otherwise render directly for browser testing
+// Track if app has been rendered
+let appRendered = false;
+
+// Safety timeout - render app after 5 seconds if Office.onReady hasn't fired
+const safetyTimeout = setTimeout(() => {
+  if (!appRendered) {
+    console.log('Safety timeout: Rendering app without Office.onReady');
+    appRendered = true;
+    renderApp();
+  }
+}, 5000);
+
+// Initialize Office.js if available, otherwise render directly
 if (typeof Office !== 'undefined' && Office.onReady) {
   Office.onReady((info) => {
-    // Render the app regardless of host type for development/testing
-    // In production, Office.context.mailbox will handle Outlook-specific features
-    renderApp();
+    if (!appRendered) {
+      clearTimeout(safetyTimeout);
+      appRendered = true;
+      console.log('Office.onReady fired, host:', info.host);
+      renderApp();
+    }
   });
 } else {
   // Office.js not loaded - render directly for standalone testing
-  document.addEventListener('DOMContentLoaded', renderApp);
+  document.addEventListener('DOMContentLoaded', () => {
+    if (!appRendered) {
+      clearTimeout(safetyTimeout);
+      appRendered = true;
+      renderApp();
+    }
+  });
 }
