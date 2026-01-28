@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type AIProvider = 'github' | 'openai' | 'anthropic' | 'azure';
+export type AIProvider = 'github' | 'openai' | 'anthropic' | 'azure' | 'xai';
 
 export interface ProviderConfig {
   id: AIProvider;
@@ -58,6 +58,19 @@ export const PROVIDERS: ProviderConfig[] = [
     ],
     placeholder: 'sk-ant-xxxxxxxxxxxxxxxxxxxx',
     helpUrl: 'https://console.anthropic.com/settings/keys',
+  },
+  {
+    id: 'xai',
+    name: 'xAI (Grok)',
+    description: 'Grok - witty AI with real-time knowledge',
+    icon: '🚀',
+    baseUrl: 'https://api.x.ai/v1',
+    models: [
+      { id: 'grok-beta', name: 'Grok Beta' },
+      { id: 'grok-2-1212', name: 'Grok 2' },
+    ],
+    placeholder: 'xai-xxxxxxxxxxxxxxxxxxxx',
+    helpUrl: 'https://console.x.ai',
   },
   {
     id: 'azure',
@@ -123,6 +136,7 @@ export const useAPIKeyStore = create<APIKeyState>()(
         openai: '',
         anthropic: '',
         azure: '',
+        xai: '',
       },
       azureEndpoint: '',
       azureDeploymentName: '',
@@ -168,7 +182,7 @@ export const useAPIKeyStore = create<APIKeyState>()(
       })),
       
       clearAllKeys: () => set({
-        apiKeys: { github: '', openai: '', anthropic: '', azure: '' },
+        apiKeys: { github: '', openai: '', anthropic: '', azure: '', xai: '' },
         useServerKey: true,
         connectionStatus: 'untested',
       }),

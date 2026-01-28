@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Spinner } from '@fluentui/react-components';
 import ChatPanel from './components/ChatPanel';
 import EmailPanel from './components/EmailPanel';
@@ -7,14 +7,42 @@ import TasksPanel from './components/TasksPanel';
 import SettingsPanel from './components/SettingsPanel';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import ApprovalModal from './components/ApprovalModal';
+import OnboardingPanel from './components/OnboardingPanel';
 import { useAppStore } from './store/appStore';
+import { useAPIKeyStore } from './store/apiKeyStore';
 import { approvalService } from './services/approvalService';
 
 type TabType = 'chat' | 'email' | 'calendar' | 'tasks' | 'analytics' | 'settings';
 
+// Check if onboarding has been completed
+const ONBOARDING_KEY = 'nexus-ai-onboarding-complete';
+
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('chat');
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const { isLoading, currentApproval, pendingApprovals } = useAppStore();
+  const { apiKeys } = useAPIKeyStore();
+
+  // Check if user needs onboarding
+  useEffect(() => {
+    const hasCompletedOnboarding = localStorage.getItem(ONBOARDING_KEY);
+    const hasAnyKey = Object.values(apiKeys).some(key => key?.trim());
+    
+    // Show onboarding if never completed AND no keys set
+    if (!hasCompletedOnboarding && !hasAnyKey) {
+      setShowOnboarding(true);
+    }
+  }, [apiKeys]);
+
+  const handleOnboardingComplete = () => {
+    localStorage.setItem(ONBOARDING_KEY, 'true');
+    setShowOnboarding(false);
+  };
+
+  // If showing onboarding, render only that
+  if (showOnboarding) {
+    return <OnboardingPanel onComplete={handleOnboardingComplete} />;
+  }
 
   const tabs: { id: TabType; label: string; icon: string }[] = [
     { id: 'chat', label: 'Chat', icon: '⌨️' },
