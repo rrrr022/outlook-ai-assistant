@@ -8,10 +8,10 @@
   
   <Id>a1b2c3d4-e5f6-7890-abcd-ef1234567890</Id>
   <Version>1.0.0.0</Version>
-  <ProviderName>OutlookAI Assistant</ProviderName>
+  <ProviderName>rrrr022</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="AI Assistant"/>
-  <Description DefaultValue="AI-powered assistant for email management, calendar scheduling, and task automation"/>
+  <DisplayName DefaultValue="NEXUS_AI"/>
+  <Description DefaultValue="Premium AI-powered assistant for intelligent email management, calendar scheduling, and task automation. Built with a retro-modern aesthetic by @rrrr022. Transform your Outlook experience with AI-driven insights and automation."/>
   
   <IconUrl DefaultValue="https://localhost:8080/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://localhost:8080/assets/icon-64.png"/>
@@ -175,11 +175,11 @@
           <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:8080/taskpane.html"/>
         </bt:Urls>
         <bt:ShortStrings>
-          <bt:String id="GroupLabel" DefaultValue="AI Assistant"/>
-          <bt:String id="TaskpaneButton.Label" DefaultValue="AI Assistant"/>
+          <bt:String id="GroupLabel" DefaultValue="NEXUS_AI"/>
+          <bt:String id="TaskpaneButton.Label" DefaultValue="NEXUS_AI"/>
         </bt:ShortStrings>
         <bt:LongStrings>
-          <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open AI Assistant to help manage emails, calendar, and tasks"/>
+          <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open NEXUS_AI - Your premium AI-powered assistant for email, calendar, and task management"/>
         </bt:LongStrings>
       </Resources>
     </VersionOverrides>

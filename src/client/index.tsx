@@ -1,8 +1,9 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { FluentProvider, webLightTheme } from '@fluentui/react-components';
+import { FluentProvider, webDarkTheme } from '@fluentui/react-components';
 import App from './App';
 import './styles/global.css';
+import './styles/retro-theme.css';
 
 // Function to render the app
 const renderApp = () => {
@@ -11,7 +12,7 @@ const renderApp = () => {
     const root = createRoot(container);
     root.render(
       <React.StrictMode>
-        <FluentProvider theme={webLightTheme}>
+        <FluentProvider theme={webDarkTheme}>
           <App />
         </FluentProvider>
       </React.StrictMode>

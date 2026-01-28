@@ -17,12 +17,12 @@ const App: React.FC = () => {
   const { isLoading, currentApproval, pendingApprovals } = useAppStore();
 
   const tabs: { id: TabType; label: string; icon: string }[] = [
-    { id: 'chat', label: 'Chat', icon: '💬' },
-    { id: 'email', label: 'Email', icon: '📧' },
-    { id: 'calendar', label: 'Calendar', icon: '📅' },
-    { id: 'tasks', label: 'Tasks', icon: '✅' },
+    { id: 'chat', label: 'Chat', icon: '⌨️' },
+    { id: 'email', label: 'Mail', icon: '📨' },
+    { id: 'calendar', label: 'Cal', icon: '📅' },
+    { id: 'tasks', label: 'Tasks', icon: '☑️' },
     { id: 'analytics', label: 'Stats', icon: '📊' },
-    { id: 'settings', label: 'Settings', icon: '⚙️' },
+    { id: 'settings', label: 'Config', icon: '⚙️' },
   ];
 
   const renderContent = () => {
@@ -59,8 +59,9 @@ const App: React.FC = () => {
   return (
     <div className="app-container">
       <header className="app-header">
-        <span className="text-icon">🤖</span>
-        <h1>AI Assistant</h1>
+        <span className="header-icon">⚡</span>
+        <h1>NEXUS_AI</h1>
+        <span className="header-version">v1.0</span>
         {pendingApprovals.length > 0 && (
           <div className="pending-badge" title={`${pendingApprovals.length} pending approval(s)`}>
             <span className="pending-count">{pendingApprovals.length}</span>
@@ -97,6 +98,14 @@ const App: React.FC = () => {
         onApprove={handleApprove}
         onReject={handleReject}
       />
+
+      {/* Footer with credits */}
+      <footer className="app-footer">
+        <div className="credits">
+          Built by <a href="https://github.com/rrrr022" target="_blank" rel="noopener noreferrer">@rrrr022</a> • 
+          <span className="status-indicator">● ONLINE</span>
+        </div>
+      </footer>
     </div>
   );
 };
