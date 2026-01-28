@@ -56,7 +56,7 @@ app.http("health", {
 app.http("chat", {
     methods: ["POST", "OPTIONS"],
     authLevel: "anonymous",
-    route: "api/chat",
+    route: "ai/chat",
     handler: async (request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
         // Handle CORS preflight
         if (request.method === "OPTIONS") {
@@ -144,7 +144,7 @@ Be concise, professional, and helpful. Format responses with markdown when appro
 app.http("email-actions", {
     methods: ["POST", "OPTIONS"],
     authLevel: "anonymous",
-    route: "api/email/actions",
+    route: "email/actions",
     handler: async (request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
         if (request.method === "OPTIONS") {
             return { status: 204, headers: corsHeaders };

@@ -1,18 +1,33 @@
 import { AIRequest, AIResponse } from '@shared/types';
+import environment from '../config/environment';
 
 /**
  * Service for communicating with the AI backend
- * Supports dynamic port discovery
+ * Supports dynamic port discovery for local development
  */
 class AIService {
   private apiBaseUrl: string | null = null;
   private portDiscoveryPromise: Promise<string> | null = null;
 
   /**
-   * Discover the backend API URL by trying common ports
+   * Check if we're running in localhost/development mode
+   */
+  private isLocalhost(): boolean {
+    return typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  }
+
+  /**
+   * Discover the backend API URL by trying common ports (localhost only)
    */
   private async discoverApiUrl(): Promise<string> {
-    // Try HTTPS first (for production/Office Add-in), then HTTP
+    // In production, use the configured API URL directly
+    if (!this.isLocalhost()) {
+      console.log(`✅ Using production API: ${environment.apiUrl}`);
+      return environment.apiUrl;
+    }
+
+    // For localhost, try to discover the port
     const portsToTry = [3001, 3002, 3003, 3004, 3005];
     const protocols = ['https', 'http'];
 
