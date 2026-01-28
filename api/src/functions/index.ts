@@ -56,8 +56,8 @@ app.http("health", {
     }
 });
 
-// Main chat endpoint
-app.http("chat", {
+// Main chat endpoint (server-key mode)
+app.http("main-chat", {
     methods: ["POST", "OPTIONS"],
     authLevel: "anonymous",
     route: "ai/chat",
