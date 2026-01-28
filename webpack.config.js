@@ -81,6 +81,11 @@ module.exports = {
           to: 'staticwebapp.config.json',
           noErrorOnMissing: true,
         },
+        {
+          from: 'public',
+          to: '.',
+          noErrorOnMissing: true,
+        },
       ],
     }),
     // Define environment variables for client

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Outlook AI by FreedomForged_AI</title>
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --text-primary: #39ff14;
+            --text-secondary: #ffb000;
+            --text-muted: #888;
+            --border-color: #333;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-primary);
+            color: #e0e0e0;
+            line-height: 1.8;
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: var(--bg-secondary);
+            padding: 40px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+        
+        h1 {
+            color: var(--text-primary);
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(57, 255, 20, 0.3);
+        }
+        
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1em;
+            margin-bottom: 30px;
+        }
+        
+        .last-updated {
+            color: var(--text-muted);
+            font-size: 0.9em;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        h2 {
+            color: var(--text-secondary);
+            font-size: 1.4em;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+        
+        p {
+            margin-bottom: 15px;
+            color: #ccc;
+        }
+        
+        ul {
+            margin-left: 25px;
+            margin-bottom: 15px;
+        }
+        
+        li {
+            margin-bottom: 8px;
+            color: #ccc;
+        }
+        
+        .highlight {
+            background: rgba(57, 255, 20, 0.1);
+            border-left: 3px solid var(--text-primary);
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .highlight strong {
+            color: var(--text-primary);
+        }
+        
+        a {
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        .contact-box {
+            background: var(--bg-primary);
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 30px;
+        }
+        
+        .contact-box h3 {
+            color: var(--text-secondary);
+            margin-bottom: 15px;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-muted);
+        }
+        
+        .logo {
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🤖</div>
+        <h1>Privacy Policy</h1>
+        <p class="subtitle">Outlook AI by FreedomForged_AI</p>
+        <p class="last-updated">Last Updated: January 28, 2026</p>
+        
+        <div class="highlight">
+            <strong>TL;DR:</strong> Your data stays with YOU. We don't store, process, or have access to your emails, calendar, or tasks. All AI processing happens directly between your browser and your chosen AI provider using YOUR API keys.
+        </div>
+        
+        <h2>1. Introduction</h2>
+        <p>Outlook AI by FreedomForged_AI ("we", "our", or "the Add-in") is committed to protecting your privacy. This Privacy Policy explains how our Microsoft Outlook add-in handles your information.</p>
+        
+        <h2>2. Data Collection</h2>
+        <p><strong>We do NOT collect, store, or transmit any of your personal data.</strong></p>
+        <p>The Add-in operates entirely client-side within your browser or Outlook application. Here's what this means:</p>
+        <ul>
+            <li><strong>Emails:</strong> Your email content is processed locally and sent directly to your chosen AI provider (OpenAI, Anthropic, xAI, GitHub, or Azure). We never see or store it.</li>
+            <li><strong>Calendar:</strong> Calendar data is accessed via Office.js APIs and processed locally.</li>
+            <li><strong>Tasks:</strong> Task data remains in your Outlook account.</li>
+            <li><strong>API Keys:</strong> Your API keys are stored locally in your browser's localStorage. They are never transmitted to our servers.</li>
+        </ul>
+        
+        <h2>3. Bring Your Own Key (BYOK)</h2>
+        <p>Our Add-in uses a "Bring Your Own Key" model, which means:</p>
+        <ul>
+            <li>You provide your own API keys from AI providers (OpenAI, Anthropic, xAI, GitHub Models, or Azure OpenAI)</li>
+            <li>API calls go directly from your browser to the AI provider</li>
+            <li>We have no access to your API keys or the data you send to AI providers</li>
+            <li>You maintain full control over your AI usage and costs</li>
+        </ul>
+        
+        <h2>4. Third-Party AI Providers</h2>
+        <p>When you use the Add-in with an AI provider, your data is subject to that provider's privacy policy:</p>
+        <ul>
+            <li><a href="https://openai.com/privacy" target="_blank">OpenAI Privacy Policy</a></li>
+            <li><a href="https://www.anthropic.com/privacy" target="_blank">Anthropic Privacy Policy</a></li>
+            <li><a href="https://x.ai/legal/privacy-policy" target="_blank">xAI Privacy Policy</a></li>
+            <li><a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank">GitHub Privacy Statement</a></li>
+            <li><a href="https://privacy.microsoft.com/en-us/privacystatement" target="_blank">Microsoft/Azure Privacy Statement</a></li>
+        </ul>
+        
+        <h2>5. Local Storage</h2>
+        <p>The Add-in stores the following data locally in your browser:</p>
+        <ul>
+            <li>Your API keys (encrypted in localStorage)</li>
+            <li>Your selected AI provider preference</li>
+            <li>Onboarding completion status</li>
+            <li>UI preferences (theme settings)</li>
+        </ul>
+        <p>This data never leaves your device and can be cleared by clearing your browser data or uninstalling the Add-in.</p>
+        
+        <h2>6. No Analytics or Tracking</h2>
+        <p>We do not use:</p>
+        <ul>
+            <li>Analytics services (Google Analytics, etc.)</li>
+            <li>Tracking pixels or cookies</li>
+            <li>User behavior monitoring</li>
+            <li>Crash reporting services</li>
+        </ul>
+        
+        <h2>7. Data Security</h2>
+        <p>Your security is ensured through:</p>
+        <ul>
+            <li>HTTPS encryption for all connections</li>
+            <li>Direct API calls to AI providers (no intermediary servers)</li>
+            <li>Local-only storage of sensitive data</li>
+            <li>No server-side data retention</li>
+        </ul>
+        
+        <h2>8. Children's Privacy</h2>
+        <p>This Add-in is not intended for use by children under 13 years of age. We do not knowingly collect any information from children.</p>
+        
+        <h2>9. Changes to This Policy</h2>
+        <p>We may update this Privacy Policy from time to time. Changes will be reflected in the "Last Updated" date at the top of this page.</p>
+        
+        <h2>10. Your Rights</h2>
+        <p>Since we don't collect your data, there's nothing to delete. However, you can:</p>
+        <ul>
+            <li>Clear your locally stored API keys and preferences by clearing browser data</li>
+            <li>Uninstall the Add-in at any time</li>
+            <li>Revoke API keys directly with your AI providers</li>
+        </ul>
+        
+        <div class="contact-box">
+            <h3>📧 Contact Us</h3>
+            <p>If you have any questions about this Privacy Policy, please contact us:</p>
+            <p><strong>Email:</strong> <a href="mailto:support@freedomforged.ai">support@freedomforged.ai</a></p>
+            <p><strong>GitHub:</strong> <a href="https://github.com/rrrr022/outlook-ai-assistant/issues" target="_blank">Open an Issue</a></p>
+        </div>
+        
+        <div class="footer">
+            <p>© 2026 FreedomForged_AI. All rights reserved.</p>
+            <p>Outlook AI - Your Data, Your Keys, Your Control.</p>
+        </div>
+    </div>
+</body>
+</html>

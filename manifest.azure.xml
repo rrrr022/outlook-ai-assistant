@@ -15,7 +15,7 @@
   
   <IconUrl DefaultValue="https://zealous-ground-01f6af20f.2.azurestaticapps.net/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://zealous-ground-01f6af20f.2.azurestaticapps.net/assets/icon-64.png"/>
-  <SupportUrl DefaultValue="https://zealous-ground-01f6af20f.2.azurestaticapps.net"/>
+  <SupportUrl DefaultValue="https://zealous-ground-01f6af20f.2.azurestaticapps.net/support.html"/>
   
   <AppDomains>
     <AppDomain>https://zealous-ground-01f6af20f.2.azurestaticapps.net</AppDomain>

@@ -15,7 +15,7 @@
   
   <IconUrl DefaultValue="https://localhost:8080/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://localhost:8080/assets/icon-64.png"/>
-  <SupportUrl DefaultValue="https://localhost:8080"/>
+  <SupportUrl DefaultValue="https://zealous-ground-01f6af20f.2.azurestaticapps.net/support.html"/>
   
   <AppDomains>
     <AppDomain>https://localhost:8080</AppDomain>
