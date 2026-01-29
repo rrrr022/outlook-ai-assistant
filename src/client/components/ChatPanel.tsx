@@ -4,7 +4,7 @@ import { useAppStore } from '../store/appStore';
 import { aiService } from '../services/aiService';
 import { outlookService } from '../services/outlookService';
 import { brandingService, UserBranding } from '../services/brandingService';
-import { agentService } from '../services/agentService';
+import { autonomousAgent } from '../services/autonomousAgent';
 import BrandingPanel from './BrandingPanel';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -18,15 +18,24 @@ type TemplateType = 'professional-report' | 'meeting-summary' | 'project-status'
 // Lazy load document service (reduces initial bundle by ~2MB)
 const loadDocumentService = () => import(/* webpackChunkName: "document-service" */ '../services/documentService');
 
+// Pending approval state
+interface PendingApproval {
+  id: string;
+  type: string;
+  description: string;
+  details: any;
+}
+
 const ChatPanel: React.FC = () => {
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [isSignedIn, setIsSignedIn] = useState(false); // Default false, will check on mount
+  const [isSignedIn, setIsSignedIn] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
   const [showBranding, setShowBranding] = useState(false);
   const [userBranding, setUserBranding] = useState<UserBranding>(brandingService.load());
+  const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { messages, addMessage, currentEmail, tasks } = useAppStore();
 
@@ -164,6 +173,80 @@ const ChatPanel: React.FC = () => {
     }
   };
 
+  // Handle approval of pending actions
+  const handleApproval = async (approvalId: string, approved: boolean) => {
+    const approval = pendingApprovals.find(a => a.id === approvalId);
+    if (!approval) return;
+
+    // Remove from pending
+    setPendingApprovals(prev => prev.filter(a => a.id !== approvalId));
+
+    if (!approved) {
+      addMessage({
+        id: uuidv4(),
+        role: 'assistant',
+        content: `❌ Cancelled: ${approval.description}`,
+        timestamp: new Date(),
+      });
+      return;
+    }
+
+    // Execute the approved action
+    setIsProcessing(true);
+    try {
+      const { graphService } = await loadGraphService();
+      
+      if (approval.type === 'send_email') {
+        // Actually send the email via Graph API
+        const success = await graphService.sendEmail(
+          approval.details.to,
+          approval.details.subject,
+          approval.details.body
+        );
+        
+        if (success) {
+          addMessage({
+            id: uuidv4(),
+            role: 'assistant',
+            content: `✅ **Email sent successfully!**\n\n📤 To: ${approval.details.to}\n📋 Subject: ${approval.details.subject}`,
+            timestamp: new Date(),
+          });
+        } else {
+          addMessage({
+            id: uuidv4(),
+            role: 'assistant',
+            content: `❌ Failed to send email. Please try again.`,
+            timestamp: new Date(),
+          });
+        }
+      } else if (approval.type === 'create_calendar_event') {
+        addMessage({
+          id: uuidv4(),
+          role: 'assistant',
+          content: `✅ **Calendar event created!**\n\n📅 ${approval.details.title}`,
+          timestamp: new Date(),
+        });
+      } else if (approval.type === 'delete_email') {
+        addMessage({
+          id: uuidv4(),
+          role: 'assistant',
+          content: `✅ **Email deleted.**`,
+          timestamp: new Date(),
+        });
+      }
+    } catch (error) {
+      console.error('Error executing approved action:', error);
+      addMessage({
+        id: uuidv4(),
+        role: 'assistant',
+        content: `❌ Error: Could not complete the action. ${error}`,
+        timestamp: new Date(),
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleSend = async (messageText?: string) => {
     const text = messageText || input.trim();
     if (!text || isProcessing) return;
@@ -176,8 +259,8 @@ const ChatPanel: React.FC = () => {
       timestamp: new Date(),
     });
 
-    // Also add to agent context
-    agentService.addToHistory({
+    // Add to agent conversation
+    autonomousAgent.addTurn({
       role: 'user',
       content: text,
       timestamp: new Date(),
@@ -189,331 +272,167 @@ const ChatPanel: React.FC = () => {
     try {
       const { graphService } = await loadGraphService();
       
-      // Detect user intent using the intelligent agent
-      const intent = agentService.detectIntent(text);
-      console.log('🧠 Detected intent:', intent);
-
       // Get current email context
       const emailContext = await outlookService.getCurrentEmailContext();
       
       // ========================================
-      // INTELLIGENT ACTION EXECUTION
+      // PHASE 1: AUTO-EXECUTE SAFE ACTIONS
       // ========================================
       
-      // Handle follow-up (user said "please" or "yes" after being asked)
-      if (intent.type === 'follow_up') {
-        const context = agentService.getContext();
-        if (context.pendingAction === 'search' && context.lastSearchQuery) {
-          // User confirmed they want to search
-          intent.type = 'search';
-          intent.entities.searchTerms = [context.lastSearchQuery];
-          console.log('🔄 Following up on search:', context.lastSearchQuery);
-        }
-      }
-
-      // SEARCH: Actually search the inbox
-      if (intent.type === 'search' && graphService.isSignedIn) {
-        const searchQueries = agentService.extractSearchQuery(text, intent.entities);
-        console.log('🔍 Search queries extracted:', searchQueries);
-
-        if (searchQueries.length > 0) {
+      // Detect if we need to search (the agent will decide, but we can pre-fetch)
+      const lowerText = text.toLowerCase();
+      const needsSearch = /search|find|look for|any.*from|emails? (from|about)|do i have/i.test(lowerText);
+      const needsInboxSummary = /review.*inbox|inbox.*summary|show.*inbox|scan.*inbox/i.test(lowerText);
+      
+      let searchResults: any[] = [];
+      let inboxSummary: any = null;
+      
+      // Auto-execute search if needed
+      if (needsSearch && graphService.isSignedIn) {
+        // Extract search terms
+        const searchTerms = extractSearchTerms(text);
+        if (searchTerms.length > 0) {
           addMessage({
             id: uuidv4(),
             role: 'assistant',
-            content: `🔍 Searching your inbox for: **${searchQueries.join(', ')}**...`,
+            content: `🔍 Searching inbox for: **${searchTerms.join(', ')}**...`,
             timestamp: new Date(),
           });
-
-          // Actually search the inbox!
-          let allResults: any[] = [];
-          for (const query of searchQueries) {
-            const results = await graphService.searchEmails(query, 25);
-            allResults = [...allResults, ...results];
+          
+          for (const term of searchTerms) {
+            const results = await graphService.searchEmails(term, 30);
+            searchResults = [...searchResults, ...results];
           }
           
-          // Deduplicate by email ID
-          const uniqueResults = Array.from(
-            new Map(allResults.map(r => [r.id, r])).values()
-          );
-          
-          // Store results in agent context
-          agentService.setSearchResults(uniqueResults, searchQueries.join(', '));
-          agentService.setPendingAction(null);
-
-          if (uniqueResults.length === 0) {
-            const responseContent = `📭 **No emails found** matching "${searchQueries.join(', ')}"\n\n` +
-              `I searched your inbox but didn't find any matching emails. Try:\n` +
-              `• Different search terms\n` +
-              `• Company name instead of product\n` +
-              `• Sender's name or email address`;
-            
-            addMessage({
-              id: uuidv4(),
-              role: 'assistant',
-              content: responseContent,
-              timestamp: new Date(),
-            });
-            
-            agentService.addToHistory({
-              role: 'assistant',
-              content: responseContent,
-              timestamp: new Date(),
-              metadata: { searchQuery: searchQueries.join(', '), searchResults: [] }
-            });
-          } else {
-            // Format results for display
-            const emailList = uniqueResults.slice(0, 10).map((e: any, i: number) => 
-              `${i + 1}. **${e.sender}** <${e.senderEmail}>\n   📧 ${e.subject}\n   📅 ${new Date(e.receivedDateTime).toLocaleDateString()}`
-            ).join('\n\n');
-            
-            // Extract unique senders for compose help
-            const uniqueSenders = Array.from(
-              new Map(uniqueResults.map((r: any) => [r.senderEmail, { name: r.sender, email: r.senderEmail }])).values()
-            );
-            
-            const responseContent = `📬 **Found ${uniqueResults.length} emails** matching "${searchQueries.join(', ')}"\n\n` +
-              `${emailList}\n\n` +
-              `---\n` +
-              `**What would you like to do?**\n` +
-              `• "Summarize these emails"\n` +
-              `• "Draft an email to [sender name]"\n` +
-              `• "What action items are in these emails?"`;
-            
-            addMessage({
-              id: uuidv4(),
-              role: 'assistant',
-              content: responseContent,
-              timestamp: new Date(),
-            });
-            
-            agentService.addToHistory({
-              role: 'assistant',
-              content: responseContent,
-              timestamp: new Date(),
-              metadata: { searchQuery: searchQueries.join(', '), searchResults: uniqueResults }
-            });
-          }
-          
-          setIsProcessing(false);
-          return;
+          // Deduplicate
+          searchResults = Array.from(new Map(searchResults.map(r => [r.id, r])).values());
+          autonomousAgent.setSearchResults(searchResults);
         }
       }
-
-      // COMPOSE: Help compose emails using inbox context
-      if (intent.type === 'compose') {
-        const context = agentService.getContext();
-        
-        // Check if we have contacts from previous searches
-        if (context.lastSearchResults.length > 0) {
-          const uniqueSenders = Array.from(
-            new Map(context.lastSearchResults.map((r: any) => [r.senderEmail, { name: r.sender, email: r.senderEmail }])).values()
-          );
-          
-          // Build AI prompt with context
-          const contextStr = agentService.buildAIContext(emailContext);
-          const enhancedPrompt = `USER REQUEST: ${text}
-
-${contextStr}
-
-The user wants to compose an email. Based on the conversation context and search results above:
-1. If they mentioned specific contacts/companies, use those email addresses
-2. If they want pricing information, draft a professional pricing request
-3. Include all relevant contacts from the search results
-4. Be specific and professional
-
-AVAILABLE CONTACTS FROM THEIR INBOX:
-${uniqueSenders.slice(0, 10).map((s: any) => `- ${s.name}: ${s.email}`).join('\n')}
-
-Draft the email(s) they requested. For each email, provide:
-- TO: [email address]
-- SUBJECT: [subject line]
-- BODY: [full email body]`;
-
-          const response = await aiService.chat({
-            prompt: enhancedPrompt,
-            context: { currentEmail: emailContext || undefined },
-          });
-
-          addMessage({
-            id: uuidv4(),
-            role: 'assistant',
-            content: response.content,
-            timestamp: new Date(),
-          });
-          
-          agentService.addToHistory({
-            role: 'assistant',
-            content: response.content,
-            timestamp: new Date(),
-          });
-          
-          setIsProcessing(false);
-          return;
-        }
-        
-        // No context - need to search first
-        if (graphService.isSignedIn) {
-          // Try to extract what they want to compose about
-          const searchTerms = agentService.extractSearchQuery(text, intent.entities);
-          
-          if (searchTerms.length > 0) {
-            addMessage({
-              id: uuidv4(),
-              role: 'assistant',
-              content: `🔍 Let me find relevant contacts in your inbox first...`,
-              timestamp: new Date(),
-            });
-            
-            let allResults: any[] = [];
-            for (const query of searchTerms) {
-              const results = await graphService.searchEmails(query, 20);
-              allResults = [...allResults, ...results];
-            }
-            
-            if (allResults.length > 0) {
-              agentService.setSearchResults(allResults, searchTerms.join(', '));
-              
-              const uniqueSenders = Array.from(
-                new Map(allResults.map((r: any) => [r.senderEmail, { name: r.sender, email: r.senderEmail }])).values()
-              );
-              
-              const senderList = uniqueSenders.slice(0, 10).map((s: any, i: number) => 
-                `${i + 1}. **${s.name}** - ${s.email}`
-              ).join('\n');
-              
-              const responseContent = `📬 **Found ${uniqueSenders.length} contacts** related to "${searchTerms.join(', ')}":\n\n` +
-                `${senderList}\n\n` +
-                `Would you like me to draft emails to all of them, or specific ones?`;
-              
-              addMessage({
-                id: uuidv4(),
-                role: 'assistant',
-                content: responseContent,
-                timestamp: new Date(),
-              });
-              
-              agentService.addToHistory({
-                role: 'assistant',
-                content: responseContent,
-                timestamp: new Date(),
-                metadata: { searchResults: allResults }
-              });
-              
-              agentService.setPendingAction('compose');
-              setIsProcessing(false);
-              return;
-            }
-          }
-        }
-      }
-
-      // LIST/REVIEW: Show inbox summary
-      if (intent.type === 'list' && graphService.isSignedIn) {
+      
+      // Auto-execute inbox summary if needed
+      if (needsInboxSummary && graphService.isSignedIn) {
         addMessage({
           id: uuidv4(),
           role: 'assistant',
-          content: '🔍 Scanning your inbox...',
+          content: `🔍 Scanning your inbox...`,
           timestamp: new Date(),
         });
-        
-        const inboxSummary = await graphService.getInboxSummary();
-        
-        if (inboxSummary.isRealData) {
-          const topSendersList = inboxSummary.topSenders.slice(0, 5)
-            .map(s => `• ${s.name} (${s.count} emails)`)
-            .join('\n');
-          
-          const recentEmailsList = inboxSummary.recentEmails.slice(0, 5)
-            .map(e => `• ${e.isRead ? '📖' : '📬'} **${e.subject}** - from ${e.sender}`)
-            .join('\n');
-          
-          const responseContent = `📊 **Inbox Summary**\n\n` +
-            `📬 **${inboxSummary.unreadCount}** unread emails\n` +
-            `📧 **${inboxSummary.totalEmails}** total (last 100)\n\n` +
-            `**Top Senders:**\n${topSendersList}\n\n` +
-            `**Recent Emails:**\n${recentEmailsList}\n\n` +
-            `What would you like to do? You can:\n` +
-            `• Search for specific emails\n` +
-            `• Summarize emails from a sender\n` +
-            `• Find action items`;
-          
-          addMessage({
-            id: uuidv4(),
-            role: 'assistant',
-            content: responseContent,
-            timestamp: new Date(),
-          });
-          
-          agentService.addToHistory({
-            role: 'assistant',
-            content: responseContent,
-            timestamp: new Date(),
-          });
-          
-          setIsProcessing(false);
-          return;
-        }
+        inboxSummary = await graphService.getInboxSummary();
+        autonomousAgent.setSearchResults(inboxSummary.recentEmails);
       }
-
+      
       // ========================================
-      // FALLBACK: Send to AI with full context
+      // PHASE 2: LET THE AI AGENT THINK & PLAN
       // ========================================
       
-      // Build comprehensive context for AI
-      const agentContext = agentService.buildAIContext(emailContext);
-      const hasSearchResults = agentService.getContext().lastSearchResults.length > 0;
+      // Build the autonomous agent prompt with all context
+      const agentPrompt = autonomousAgent.buildAgentPrompt(text, emailContext);
       
-      const systemInstructions = hasSearchResults 
-        ? `You have access to the user's inbox search results. Use them to answer questions.
-If they ask about emails, contacts, or want to compose - USE THE SEARCH RESULTS PROVIDED.
-Don't ask them to search - YOU have the results already.
-Be proactive and helpful.`
-        : `You are a helpful email assistant. If the user asks about finding or searching emails, and you don't have search results, tell them you'll search for it and then ACTUALLY describe what you found (the system will search automatically).`;
-
-      const enhancedPrompt = `${systemInstructions}
-
-USER REQUEST: ${text}
-
-${agentContext}
-
-${emailContext ? `
-CURRENTLY SELECTED EMAIL:
-- From: ${emailContext.sender} (${emailContext.senderEmail || 'no email'})
-- Subject: ${emailContext.subject}
-- Preview: ${emailContext.preview || 'No preview'}
-` : ''}
-
-Respond helpfully. If you have search results above, USE THEM to answer. Don't ask the user to search - you already have the data.`;
-
+      // Send to AI model
       const response = await aiService.chat({
-        prompt: enhancedPrompt,
+        prompt: agentPrompt,
         context: { currentEmail: emailContext || undefined },
       });
-
+      
+      // Parse the agent's response
+      const parsed = autonomousAgent.parseAgentResponse(response.content);
+      
+      // ========================================
+      // PHASE 3: DISPLAY RESULTS & HANDLE APPROVALS
+      // ========================================
+      
+      // Store any pending approvals
+      if (parsed.pendingApprovals.length > 0) {
+        const newApprovals = parsed.pendingApprovals.map(a => ({
+          id: uuidv4(),
+          type: a.type,
+          description: a.description,
+          details: a.details,
+        }));
+        setPendingApprovals(prev => [...prev, ...newApprovals]);
+        autonomousAgent.setPendingApprovals(parsed.pendingApprovals);
+      }
+      
+      // Build the display message
+      let displayContent = '';
+      
+      // Show thinking if present (collapsed/subtle)
+      if (parsed.thinking) {
+        displayContent += `💭 *${parsed.thinking}*\n\n`;
+      }
+      
+      // Show actions taken
+      if (parsed.actions) {
+        displayContent += `${parsed.actions}\n\n`;
+      }
+      
+      // Show main result
+      displayContent += parsed.result;
+      
+      // Add the response
       addMessage({
         id: uuidv4(),
         role: 'assistant',
-        content: response.content,
+        content: displayContent,
         timestamp: new Date(),
       });
       
-      agentService.addToHistory({
-        role: 'assistant',
-        content: response.content,
+      // Add to agent conversation
+      autonomousAgent.addTurn({
+        role: 'agent',
+        content: displayContent,
         timestamp: new Date(),
+        searchResults: searchResults.length > 0 ? searchResults : undefined,
       });
 
     } catch (error) {
-      console.error('ChatPanel error:', error);
+      console.error('Agent error:', error);
       addMessage({
         id: uuidv4(),
         role: 'assistant',
-        content: 'Sorry, I encountered an error processing your request. Please try again.',
+        content: 'Sorry, I encountered an error. Please try again.',
         timestamp: new Date(),
       });
     } finally {
       setIsProcessing(false);
     }
+  };
+  
+  // Helper to extract search terms from user message
+  const extractSearchTerms = (message: string): string[] => {
+    const terms: string[] = [];
+    
+    // Common patterns
+    const patterns = [
+      /(?:from|by)\s+(?:the\s+)?([a-z0-9\s\-\.@]+?)(?:\s+(?:in|about|and|asking)|$)/gi,
+      /(?:about|regarding)\s+([a-z0-9\s\-]+?)(?:\s+(?:in|from|and)|$)/gi,
+      /([a-z0-9\s\-]+?)\s+(?:distributors?|suppliers?|vendors?)/gi,
+      /(patent office|uspto|activated carbon|pricing)/gi,
+    ];
+    
+    for (const pattern of patterns) {
+      let match;
+      while ((match = pattern.exec(message)) !== null) {
+        const term = match[1]?.trim();
+        if (term && term.length > 2 && !terms.includes(term.toLowerCase())) {
+          terms.push(term);
+        }
+      }
+    }
+    
+    // If no patterns matched, use key nouns from the message
+    if (terms.length === 0) {
+      const cleaned = message
+        .replace(/^(please|can you|could you|i need to|i want to|search|find|look for|show me|get)\s*/gi, '')
+        .replace(/\s*(in my inbox|from my email|please)$/gi, '')
+        .trim();
+      if (cleaned.length > 2) {
+        terms.push(cleaned);
+      }
+    }
+    
+    return terms.slice(0, 3); // Limit to 3 search terms
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -689,46 +608,47 @@ Respond helpfully. If you have search results above, USE THEM to answer. Don't a
               <strong>Hi! I'm your AI Assistant.</strong>
             </p>
             <p className="empty-state-text" style={{ fontSize: '13px', marginTop: '8px' }}>
-              I'm always here to help you with:
+              I can autonomously help you with:
             </p>
             <ul style={{ fontSize: '12px', textAlign: 'left', margin: '8px 0', paddingLeft: '20px', color: '#555' }}>
-              <li>📥 Review your entire inbox</li>
+              <li>📥 Search & analyze your entire inbox</li>
               <li>📅 Manage your calendar & meetings</li>
-              <li>📋 Organize tasks & to-dos</li>
-              <li>✉️ Draft & send emails</li>
-              <li>🔍 Search through your mailbox</li>
+              <li>✉️ Draft & send emails (with your approval)</li>
+              <li>🔍 Find contacts and compose messages</li>
+              <li>📋 Extract action items & create tasks</li>
             </ul>
             <p className="empty-state-text" style={{ fontSize: '12px', marginTop: '8px' }}>
-              Use the quick actions above or just ask me anything!
+              Just tell me what you need - I'll handle the rest!
             </p>
           </div>
         ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={`chat-message ${message.role}`}
-            >
-              <div className="message-content">{message.content}</div>
-              {/* Export buttons for AI responses */}
-              {message.role === 'assistant' && message.content.length > 50 && (
-                <div className="message-export-buttons">
-                  <button
-                    className="export-btn"
-                    onClick={() => handleExport('word', message.content)}
-                    title="Export to Word"
-                  >
-                    📄 Word
-                  </button>
-                  <button
-                    className="export-btn"
-                    onClick={() => handleExport('pdf', message.content)}
-                    title="Export to PDF"
-                  >
-                    📕 PDF
-                  </button>
-                  <button
-                    className="export-btn"
-                    onClick={() => handleExport('excel', message.content)}
+          <>
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={`chat-message ${message.role}`}
+              >
+                <div className="message-content">{message.content}</div>
+                {/* Export buttons for AI responses */}
+                {message.role === 'assistant' && message.content.length > 50 && (
+                  <div className="message-export-buttons">
+                    <button
+                      className="export-btn"
+                      onClick={() => handleExport('word', message.content)}
+                      title="Export to Word"
+                    >
+                      📄 Word
+                    </button>
+                    <button
+                      className="export-btn"
+                      onClick={() => handleExport('pdf', message.content)}
+                      title="Export to PDF"
+                    >
+                      📕 PDF
+                    </button>
+                    <button
+                      className="export-btn"
+                      onClick={() => handleExport('excel', message.content)}
                     title="Export to Excel"
                   >
                     📊 Excel
@@ -742,8 +662,63 @@ Respond helpfully. If you have search results above, USE THEM to answer. Don't a
                   </button>
                 </div>
               )}
-            </div>
-          ))
+              </div>
+            ))}
+            
+            {/* Pending Approvals */}
+            {pendingApprovals.length > 0 && (
+              <div className="pending-approvals">
+                <div className="approval-header">
+                  ⚠️ <strong>Actions awaiting your approval:</strong>
+                </div>
+                {pendingApprovals.map((approval) => (
+                  <div key={approval.id} className="approval-card">
+                    <div className="approval-type">
+                      {approval.type === 'send_email' && '📤 Send Email'}
+                      {approval.type === 'delete_email' && '🗑️ Delete Email'}
+                      {approval.type === 'create_calendar_event' && '📅 Create Event'}
+                      {approval.type === 'reply_to_email' && '↩️ Reply'}
+                      {approval.type === 'forward_email' && '↪️ Forward'}
+                    </div>
+                    <div className="approval-details">
+                      {approval.type === 'send_email' && (
+                        <>
+                          <div><strong>To:</strong> {approval.details.to}</div>
+                          <div><strong>Subject:</strong> {approval.details.subject}</div>
+                          <div className="approval-body"><strong>Body:</strong><br/>{approval.details.body}</div>
+                        </>
+                      )}
+                      {approval.type === 'create_calendar_event' && (
+                        <>
+                          <div><strong>Event:</strong> {approval.details.title}</div>
+                          <div><strong>Time:</strong> {approval.details.time}</div>
+                        </>
+                      )}
+                      {approval.type === 'delete_email' && (
+                        <div><strong>Email:</strong> {approval.details.subject}</div>
+                      )}
+                    </div>
+                    <div className="approval-buttons">
+                      <button 
+                        className="approve-btn"
+                        onClick={() => handleApproval(approval.id, true)}
+                        disabled={isProcessing}
+                      >
+                        ✅ Approve
+                      </button>
+                      <button 
+                        className="reject-btn"
+                        onClick={() => handleApproval(approval.id, false)}
+                        disabled={isProcessing}
+                      >
+                        ❌ Cancel
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
         {isProcessing && (
           <div className="chat-message assistant">

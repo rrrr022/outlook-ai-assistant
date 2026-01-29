@@ -511,6 +511,178 @@ class GraphService {
   }
 
   /**
+   * Send an email via Microsoft Graph API
+   */
+  async sendEmail(to: string, subject: string, body: string, cc?: string, bcc?: string): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) {
+      console.error('Cannot send email: not authenticated');
+      return false;
+    }
+
+    try {
+      const restUrl = this.getRestUrl();
+      
+      // Build the message object
+      const message: any = {
+        subject,
+        body: {
+          contentType: 'HTML',
+          content: body.replace(/\n/g, '<br>'),
+        },
+        toRecipients: to.split(/[,;]/).map(email => ({
+          emailAddress: { address: email.trim() }
+        })),
+      };
+      
+      if (cc) {
+        message.ccRecipients = cc.split(/[,;]/).map(email => ({
+          emailAddress: { address: email.trim() }
+        }));
+      }
+      
+      if (bcc) {
+        message.bccRecipients = bcc.split(/[,;]/).map(email => ({
+          emailAddress: { address: email.trim() }
+        }));
+      }
+
+      const response = await fetch(`${restUrl}/me/sendMail`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message,
+          saveToSentItems: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error('Send email error:', response.status, error);
+        return false;
+      }
+
+      console.log('✅ Email sent successfully');
+      return true;
+    } catch (error) {
+      console.error('Error sending email:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Reply to an email
+   */
+  async replyToEmail(emailId: string, body: string): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const restUrl = this.getRestUrl();
+      
+      const response = await fetch(`${restUrl}/me/messages/${emailId}/reply`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          comment: body.replace(/\n/g, '<br>'),
+        }),
+      });
+
+      return response.ok;
+    } catch (error) {
+      console.error('Error replying to email:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Delete an email
+   */
+  async deleteEmail(emailId: string): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const restUrl = this.getRestUrl();
+      
+      const response = await fetch(`${restUrl}/me/messages/${emailId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      return response.ok;
+    } catch (error) {
+      console.error('Error deleting email:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Create a calendar event
+   */
+  async createCalendarEvent(
+    subject: string,
+    start: Date,
+    end: Date,
+    attendees?: string[],
+    body?: string,
+    location?: string
+  ): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const restUrl = this.getRestUrl();
+      
+      const event: any = {
+        subject,
+        body: body ? {
+          contentType: 'HTML',
+          content: body,
+        } : undefined,
+        start: {
+          dateTime: start.toISOString(),
+          timeZone: 'UTC',
+        },
+        end: {
+          dateTime: end.toISOString(),
+          timeZone: 'UTC',
+        },
+        location: location ? { displayName: location } : undefined,
+      };
+      
+      if (attendees && attendees.length > 0) {
+        event.attendees = attendees.map(email => ({
+          emailAddress: { address: email.trim() },
+          type: 'required',
+        }));
+      }
+
+      const response = await fetch(`${restUrl}/me/events`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(event),
+      });
+
+      return response.ok;
+    } catch (error) {
+      console.error('Error creating calendar event:', error);
+      return false;
+    }
+  }
+
+  /**
    * Mock emails for development/testing
    */
   private getMockEmails(count: number = 10): EmailSummary[] {

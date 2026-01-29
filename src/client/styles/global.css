@@ -246,6 +246,107 @@ body {
   border-bottom-left-radius: 4px;
 }
 
+/* Pending Approvals UI */
+.pending-approvals {
+  margin: 12px 0;
+  padding: 12px;
+  background: linear-gradient(135deg, #fff4ce 0%, #ffe7a0 100%);
+  border: 2px solid #ffc107;
+  border-radius: 12px;
+}
+
+.approval-header {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e6b800;
+  color: #856404;
+  font-size: 14px;
+}
+
+.approval-card {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.approval-card:last-child {
+  margin-bottom: 0;
+}
+
+.approval-type {
+  font-weight: 600;
+  font-size: 14px;
+  color: #323130;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #eee;
+}
+
+.approval-details {
+  font-size: 13px;
+  color: #605e5c;
+  margin-bottom: 12px;
+}
+
+.approval-details div {
+  margin-bottom: 4px;
+}
+
+.approval-body {
+  background: #f9f9f9;
+  padding: 8px;
+  border-radius: 4px;
+  margin-top: 8px;
+  max-height: 150px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.approval-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.approve-btn, .reject-btn {
+  flex: 1;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.approve-btn {
+  background: #107c10;
+  color: white;
+}
+
+.approve-btn:hover:not(:disabled) {
+  background: #0e6b0e;
+}
+
+.reject-btn {
+  background: #d13438;
+  color: white;
+}
+
+.reject-btn:hover:not(:disabled) {
+  background: #b52e31;
+}
+
+.approve-btn:disabled, .reject-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .chat-input-container {
   display: flex;
   gap: 8px;
