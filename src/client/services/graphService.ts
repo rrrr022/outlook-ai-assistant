@@ -683,6 +683,1757 @@ class GraphService {
   }
 
   /**
+   * Forward an email to specified recipients
+   */
+  async forwardEmail(
+    emailId: string,
+    toRecipients: string[],
+    comment?: string
+  ): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const requestBody: any = {
+        toRecipients: toRecipients.map(email => ({
+          emailAddress: { address: email }
+        }))
+      };
+      
+      if (comment) {
+        requestBody.comment = comment;
+      }
+
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/messages/${emailId}/forward`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
+
+      if (response.ok || response.status === 202) {
+        console.log('Email forwarded successfully');
+        return true;
+      } else {
+        console.error('Failed to forward email:', response.status);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error forwarding email:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get all mail folders
+   */
+  async getFolders(): Promise<{ id: string; displayName: string; unreadItemCount: number }[]> {
+    const token = await this.getAccessToken();
+    if (!token) return [];
+
+    try {
+      const response = await fetch(
+        'https://graph.microsoft.com/v1.0/me/mailFolders?$top=50',
+        {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.value.map((folder: any) => ({
+          id: folder.id,
+          displayName: folder.displayName,
+          unreadItemCount: folder.unreadItemCount || 0,
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting folders:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Move an email to a specific folder
+   */
+  async moveEmailToFolder(emailId: string, folderId: string): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/messages/${emailId}/move`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ destinationId: folderId }),
+        }
+      );
+
+      if (response.ok) {
+        console.log('Email moved successfully');
+        return true;
+      } else {
+        console.error('Failed to move email:', response.status);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error moving email:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Archive an email (move to Archive folder)
+   */
+  async archiveEmail(emailId: string): Promise<boolean> {
+    const folders = await this.getFolders();
+    const archiveFolder = folders.find(f => 
+      f.displayName.toLowerCase() === 'archive'
+    );
+    
+    if (archiveFolder) {
+      return this.moveEmailToFolder(emailId, archiveFolder.id);
+    } else {
+      console.error('Archive folder not found');
+      return false;
+    }
+  }
+
+  /**
+   * Flag or unflag an email
+   */
+  async flagEmail(emailId: string, flagged: boolean): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/messages/${emailId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            flag: {
+              flagStatus: flagged ? 'flagged' : 'notFlagged'
+            }
+          }),
+        }
+      );
+
+      if (response.ok) {
+        console.log(`Email ${flagged ? 'flagged' : 'unflagged'} successfully`);
+        return true;
+      } else {
+        console.error('Failed to flag email:', response.status);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error flagging email:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Create a draft email
+   */
+  async createDraft(
+    to: string[],
+    subject: string,
+    body: string,
+    cc?: string[],
+    bcc?: string[]
+  ): Promise<{ id: string; webLink: string } | null> {
+    const token = await this.getAccessToken();
+    if (!token) return null;
+
+    try {
+      const emailMessage: any = {
+        subject,
+        body: {
+          contentType: 'HTML',
+          content: body.replace(/\n/g, '<br>'),
+        },
+        toRecipients: to.map(email => ({
+          emailAddress: { address: email }
+        })),
+      };
+
+      if (cc && cc.length > 0) {
+        emailMessage.ccRecipients = cc.map(email => ({
+          emailAddress: { address: email }
+        }));
+      }
+
+      if (bcc && bcc.length > 0) {
+        emailMessage.bccRecipients = bcc.map(email => ({
+          emailAddress: { address: email }
+        }));
+      }
+
+      const response = await fetch(
+        'https://graph.microsoft.com/v1.0/me/messages',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(emailMessage),
+        }
+      );
+
+      if (response.ok) {
+        const draft = await response.json();
+        console.log('Draft created successfully');
+        return {
+          id: draft.id,
+          webLink: draft.webLink || '',
+        };
+      } else {
+        console.error('Failed to create draft:', response.status);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error creating draft:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Mark an email as unread
+   */
+  async markEmailAsUnread(emailId: string): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/messages/${emailId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ isRead: false }),
+        }
+      );
+
+      if (response.ok) {
+        console.log('Email marked as unread');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error marking email as unread:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Create a To-Do task
+   */
+  async createTask(
+    title: string,
+    dueDate?: Date,
+    body?: string,
+    linkedEmailId?: string
+  ): Promise<{ id: string } | null> {
+    const token = await this.getAccessToken();
+    if (!token) return null;
+
+    try {
+      // First get the default task list
+      const listsResponse = await fetch(
+        'https://graph.microsoft.com/v1.0/me/todo/lists',
+        {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      if (!listsResponse.ok) {
+        console.error('Failed to get task lists');
+        return null;
+      }
+
+      const listsData = await listsResponse.json();
+      const defaultList = listsData.value.find((list: any) => 
+        list.wellknownListName === 'defaultList' || list.displayName === 'Tasks'
+      ) || listsData.value[0];
+
+      if (!defaultList) {
+        console.error('No task list found');
+        return null;
+      }
+
+      const taskBody: any = {
+        title,
+        importance: 'normal',
+      };
+
+      if (dueDate) {
+        taskBody.dueDateTime = {
+          dateTime: dueDate.toISOString(),
+          timeZone: 'UTC',
+        };
+      }
+
+      if (body) {
+        taskBody.body = {
+          content: body,
+          contentType: 'text',
+        };
+      }
+
+      if (linkedEmailId) {
+        taskBody.linkedResources = [{
+          webUrl: `https://outlook.office.com/mail/id/${linkedEmailId}`,
+          applicationName: 'Outlook',
+          displayName: 'Related Email',
+        }];
+      }
+
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/todo/lists/${defaultList.id}/tasks`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(taskBody),
+        }
+      );
+
+      if (response.ok) {
+        const task = await response.json();
+        console.log('Task created successfully');
+        return { id: task.id };
+      } else {
+        console.error('Failed to create task:', response.status);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error creating task:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get upcoming tasks
+   */
+  async getTasks(count: number = 20): Promise<{
+    id: string;
+    title: string;
+    status: string;
+    dueDate?: Date;
+    importance: string;
+  }[]> {
+    const token = await this.getAccessToken();
+    if (!token) return [];
+
+    try {
+      // Get all task lists
+      const listsResponse = await fetch(
+        'https://graph.microsoft.com/v1.0/me/todo/lists',
+        {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      if (!listsResponse.ok) return [];
+
+      const listsData = await listsResponse.json();
+      const allTasks: any[] = [];
+
+      // Get tasks from each list
+      for (const list of listsData.value) {
+        const tasksResponse = await fetch(
+          `https://graph.microsoft.com/v1.0/me/todo/lists/${list.id}/tasks?$filter=status ne 'completed'&$top=${count}`,
+          {
+            headers: { 'Authorization': `Bearer ${token}` },
+          }
+        );
+
+        if (tasksResponse.ok) {
+          const tasksData = await tasksResponse.json();
+          allTasks.push(...tasksData.value);
+        }
+      }
+
+      return allTasks.slice(0, count).map((task: any) => ({
+        id: task.id,
+        title: task.title,
+        status: task.status,
+        dueDate: task.dueDateTime ? new Date(task.dueDateTime.dateTime) : undefined,
+        importance: task.importance,
+      }));
+    } catch (error) {
+      console.error('Error getting tasks:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Delete a calendar event
+   */
+  async deleteCalendarEvent(eventId: string): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/calendar/events/${eventId}`,
+        {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok || response.status === 204) {
+        console.log('Calendar event deleted successfully');
+        return true;
+      } else {
+        console.error('Failed to delete calendar event:', response.status);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error deleting calendar event:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get contacts from address book
+   */
+  async getContacts(count: number = 50): Promise<{
+    id: string;
+    displayName: string;
+    emailAddresses: string[];
+    jobTitle?: string;
+    companyName?: string;
+  }[]> {
+    const token = await this.getAccessToken();
+    if (!token) return [];
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/contacts?$top=${count}&$select=id,displayName,emailAddresses,jobTitle,companyName`,
+        {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.value.map((contact: any) => ({
+          id: contact.id,
+          displayName: contact.displayName || '',
+          emailAddresses: (contact.emailAddresses || []).map((e: any) => e.address),
+          jobTitle: contact.jobTitle,
+          companyName: contact.companyName,
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting contacts:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Search contacts by name or email
+   */
+  async searchContacts(query: string): Promise<{
+    displayName: string;
+    emailAddress: string;
+    source: string;
+  }[]> {
+    const token = await this.getAccessToken();
+    if (!token) return [];
+
+    try {
+      // Use the people API for better results
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/people?$search="${encodeURIComponent(query)}"&$top=10`,
+        {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.value
+          .filter((person: any) => person.scoredEmailAddresses?.length > 0)
+          .map((person: any) => ({
+            displayName: person.displayName || '',
+            emailAddress: person.scoredEmailAddresses[0]?.address || '',
+            source: person.personType?.class || 'Unknown',
+          }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error searching contacts:', error);
+      return [];
+    }
+  }
+
+  // ============================================================
+  // ATTACHMENT FUNCTIONS
+  // ============================================================
+
+  /**
+   * Get attachments for an email
+   */
+  async getAttachments(emailId: string): Promise<{
+    id: string;
+    name: string;
+    contentType: string;
+    size: number;
+    isInline: boolean;
+  }[]> {
+    const token = await this.getAccessToken();
+    if (!token) return [];
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/messages/${emailId}/attachments`,
+        {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.value.map((att: any) => ({
+          id: att.id,
+          name: att.name,
+          contentType: att.contentType,
+          size: att.size,
+          isInline: att.isInline || false,
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting attachments:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Download attachment content (base64)
+   */
+  async downloadAttachment(emailId: string, attachmentId: string): Promise<{ name: string; content: string } | null> {
+    const token = await this.getAccessToken();
+    if (!token) return null;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/messages/${emailId}/attachments/${attachmentId}`,
+        {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          name: data.name,
+          content: data.contentBytes || '',
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error downloading attachment:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Add attachment to a draft email
+   */
+  async addAttachment(
+    emailId: string,
+    name: string,
+    contentBytes: string,
+    contentType: string = 'application/octet-stream'
+  ): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/messages/${emailId}/attachments`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            '@odata.type': '#microsoft.graph.fileAttachment',
+            name,
+            contentBytes,
+            contentType,
+          }),
+        }
+      );
+
+      return response.ok;
+    } catch (error) {
+      console.error('Error adding attachment:', error);
+      return false;
+    }
+  }
+
+  // ============================================================
+  // EMAIL CATEGORY & IMPORTANCE FUNCTIONS
+  // ============================================================
+
+  /**
+   * Set categories on an email
+   */
+  async setEmailCategories(emailId: string, categories: string[]): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/messages/${emailId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ categories }),
+        }
+      );
+
+      return response.ok;
+    } catch (error) {
+      console.error('Error setting categories:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get available categories
+   */
+  async getCategories(): Promise<{ displayName: string; color: string }[]> {
+    const token = await this.getAccessToken();
+    if (!token) return [];
+
+    try {
+      const response = await fetch(
+        'https://graph.microsoft.com/v1.0/me/outlook/masterCategories',
+        {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.value.map((cat: any) => ({
+          displayName: cat.displayName,
+          color: cat.color,
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting categories:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Set email importance
+   */
+  async setEmailImportance(emailId: string, importance: 'low' | 'normal' | 'high'): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/messages/${emailId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ importance }),
+        }
+      );
+
+      return response.ok;
+    } catch (error) {
+      console.error('Error setting importance:', error);
+      return false;
+    }
+  }
+
+  // ============================================================
+  // REPLY ALL & CONVERSATION THREAD
+  // ============================================================
+
+  /**
+   * Reply all to an email
+   */
+  async replyAllToEmail(emailId: string, body: string): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/messages/${emailId}/replyAll`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            comment: body.replace(/\n/g, '<br>'),
+          }),
+        }
+      );
+
+      return response.ok || response.status === 202;
+    } catch (error) {
+      console.error('Error replying all:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get conversation thread
+   */
+  async getConversationThread(conversationId: string, count: number = 20): Promise<EmailSummary[]> {
+    const token = await this.getAccessToken();
+    if (!token) return [];
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/messages?$filter=conversationId eq '${conversationId}'&$top=${count}&$orderby=receivedDateTime desc`,
+        {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.value.map((email: any) => ({
+          id: email.id,
+          subject: email.subject,
+          sender: email.from?.emailAddress?.name || 'Unknown',
+          senderEmail: email.from?.emailAddress?.address || '',
+          receivedDateTime: new Date(email.receivedDateTime),
+          preview: email.bodyPreview || '',
+          isRead: email.isRead,
+          importance: email.importance,
+          hasAttachments: email.hasAttachments,
+          conversationId: email.conversationId,
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting conversation thread:', error);
+      return [];
+    }
+  }
+
+  // ============================================================
+  // CALENDAR - MEETING RESPONSES
+  // ============================================================
+
+  /**
+   * Accept a meeting invitation
+   */
+  async acceptMeeting(eventId: string, comment?: string, sendResponse: boolean = true): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/events/${eventId}/accept`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            comment: comment || '',
+            sendResponse,
+          }),
+        }
+      );
+
+      return response.ok || response.status === 202;
+    } catch (error) {
+      console.error('Error accepting meeting:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Decline a meeting invitation
+   */
+  async declineMeeting(eventId: string, comment?: string, sendResponse: boolean = true): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/events/${eventId}/decline`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            comment: comment || '',
+            sendResponse,
+          }),
+        }
+      );
+
+      return response.ok || response.status === 202;
+    } catch (error) {
+      console.error('Error declining meeting:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Tentatively accept a meeting
+   */
+  async tentativelyAcceptMeeting(eventId: string, comment?: string, sendResponse: boolean = true): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/events/${eventId}/tentativelyAccept`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            comment: comment || '',
+            sendResponse,
+          }),
+        }
+      );
+
+      return response.ok || response.status === 202;
+    } catch (error) {
+      console.error('Error tentatively accepting meeting:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Update a calendar event
+   */
+  async updateCalendarEvent(
+    eventId: string,
+    updates: {
+      subject?: string;
+      start?: Date;
+      end?: Date;
+      location?: string;
+      body?: string;
+      attendees?: string[];
+    }
+  ): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const eventUpdate: any = {};
+      
+      if (updates.subject) eventUpdate.subject = updates.subject;
+      if (updates.location) eventUpdate.location = { displayName: updates.location };
+      if (updates.body) eventUpdate.body = { contentType: 'HTML', content: updates.body };
+      
+      if (updates.start) {
+        eventUpdate.start = {
+          dateTime: updates.start.toISOString(),
+          timeZone: 'UTC',
+        };
+      }
+      
+      if (updates.end) {
+        eventUpdate.end = {
+          dateTime: updates.end.toISOString(),
+          timeZone: 'UTC',
+        };
+      }
+      
+      if (updates.attendees) {
+        eventUpdate.attendees = updates.attendees.map(email => ({
+          emailAddress: { address: email },
+          type: 'required',
+        }));
+      }
+
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/events/${eventId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(eventUpdate),
+        }
+      );
+
+      return response.ok;
+    } catch (error) {
+      console.error('Error updating calendar event:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Create a recurring calendar event
+   */
+  async createRecurringEvent(
+    subject: string,
+    start: Date,
+    end: Date,
+    recurrence: {
+      pattern: 'daily' | 'weekly' | 'monthly' | 'yearly';
+      interval: number;
+      daysOfWeek?: ('sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday')[];
+      endDate?: Date;
+      occurrences?: number;
+    },
+    attendees?: string[],
+    location?: string
+  ): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const recurrencePattern: any = {
+        type: recurrence.pattern,
+        interval: recurrence.interval,
+      };
+      
+      if (recurrence.daysOfWeek) {
+        recurrencePattern.daysOfWeek = recurrence.daysOfWeek;
+      }
+
+      const recurrenceRange: any = {
+        type: recurrence.endDate ? 'endDate' : (recurrence.occurrences ? 'numbered' : 'noEnd'),
+        startDate: start.toISOString().split('T')[0],
+      };
+      
+      if (recurrence.endDate) {
+        recurrenceRange.endDate = recurrence.endDate.toISOString().split('T')[0];
+      }
+      if (recurrence.occurrences) {
+        recurrenceRange.numberOfOccurrences = recurrence.occurrences;
+      }
+
+      const event: any = {
+        subject,
+        start: { dateTime: start.toISOString(), timeZone: 'UTC' },
+        end: { dateTime: end.toISOString(), timeZone: 'UTC' },
+        recurrence: {
+          pattern: recurrencePattern,
+          range: recurrenceRange,
+        },
+      };
+
+      if (attendees && attendees.length > 0) {
+        event.attendees = attendees.map(email => ({
+          emailAddress: { address: email },
+          type: 'required',
+        }));
+      }
+
+      if (location) {
+        event.location = { displayName: location };
+      }
+
+      const response = await fetch(
+        'https://graph.microsoft.com/v1.0/me/events',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(event),
+        }
+      );
+
+      return response.ok;
+    } catch (error) {
+      console.error('Error creating recurring event:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get free/busy schedule
+   */
+  async getFreeBusy(
+    emails: string[],
+    start: Date,
+    end: Date
+  ): Promise<{
+    email: string;
+    availability: 'free' | 'tentative' | 'busy' | 'oof' | 'workingElsewhere' | 'unknown';
+    slots: { start: Date; end: Date; status: string }[];
+  }[]> {
+    const token = await this.getAccessToken();
+    if (!token) return [];
+
+    try {
+      const response = await fetch(
+        'https://graph.microsoft.com/v1.0/me/calendar/getSchedule',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            schedules: emails,
+            startTime: { dateTime: start.toISOString(), timeZone: 'UTC' },
+            endTime: { dateTime: end.toISOString(), timeZone: 'UTC' },
+            availabilityViewInterval: 30,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.value.map((schedule: any) => ({
+          email: schedule.scheduleId,
+          availability: schedule.availabilityView?.[0] === '0' ? 'free' : 'busy',
+          slots: (schedule.scheduleItems || []).map((item: any) => ({
+            start: new Date(item.start.dateTime),
+            end: new Date(item.end.dateTime),
+            status: item.status,
+          })),
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting free/busy:', error);
+      return [];
+    }
+  }
+
+  // ============================================================
+  // TASKS - COMPLETE, DELETE, UPDATE
+  // ============================================================
+
+  /**
+   * Complete a task
+   */
+  async completeTask(taskId: string, listId?: string): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      // If no listId provided, find it
+      let targetListId = listId;
+      if (!targetListId) {
+        const listsResponse = await fetch(
+          'https://graph.microsoft.com/v1.0/me/todo/lists',
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        if (listsResponse.ok) {
+          const listsData = await listsResponse.json();
+          // Search all lists for the task
+          for (const list of listsData.value) {
+            const taskResponse = await fetch(
+              `https://graph.microsoft.com/v1.0/me/todo/lists/${list.id}/tasks/${taskId}`,
+              { headers: { 'Authorization': `Bearer ${token}` } }
+            );
+            if (taskResponse.ok) {
+              targetListId = list.id;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!targetListId) return false;
+
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/todo/lists/${targetListId}/tasks/${taskId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            status: 'completed',
+            completedDateTime: {
+              dateTime: new Date().toISOString(),
+              timeZone: 'UTC',
+            },
+          }),
+        }
+      );
+
+      return response.ok;
+    } catch (error) {
+      console.error('Error completing task:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Delete a task
+   */
+  async deleteTask(taskId: string, listId?: string): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      let targetListId = listId;
+      if (!targetListId) {
+        const listsResponse = await fetch(
+          'https://graph.microsoft.com/v1.0/me/todo/lists',
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        if (listsResponse.ok) {
+          const listsData = await listsResponse.json();
+          for (const list of listsData.value) {
+            const taskResponse = await fetch(
+              `https://graph.microsoft.com/v1.0/me/todo/lists/${list.id}/tasks/${taskId}`,
+              { headers: { 'Authorization': `Bearer ${token}` } }
+            );
+            if (taskResponse.ok) {
+              targetListId = list.id;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!targetListId) return false;
+
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/todo/lists/${targetListId}/tasks/${taskId}`,
+        {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      return response.ok || response.status === 204;
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Update a task
+   */
+  async updateTask(
+    taskId: string,
+    updates: {
+      title?: string;
+      body?: string;
+      dueDate?: Date;
+      importance?: 'low' | 'normal' | 'high';
+    },
+    listId?: string
+  ): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      let targetListId = listId;
+      if (!targetListId) {
+        const listsResponse = await fetch(
+          'https://graph.microsoft.com/v1.0/me/todo/lists',
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        if (listsResponse.ok) {
+          const listsData = await listsResponse.json();
+          for (const list of listsData.value) {
+            const taskResponse = await fetch(
+              `https://graph.microsoft.com/v1.0/me/todo/lists/${list.id}/tasks/${taskId}`,
+              { headers: { 'Authorization': `Bearer ${token}` } }
+            );
+            if (taskResponse.ok) {
+              targetListId = list.id;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!targetListId) return false;
+
+      const taskUpdate: any = {};
+      if (updates.title) taskUpdate.title = updates.title;
+      if (updates.body) taskUpdate.body = { content: updates.body, contentType: 'text' };
+      if (updates.importance) taskUpdate.importance = updates.importance;
+      if (updates.dueDate) {
+        taskUpdate.dueDateTime = {
+          dateTime: updates.dueDate.toISOString(),
+          timeZone: 'UTC',
+        };
+      }
+
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/todo/lists/${targetListId}/tasks/${taskId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(taskUpdate),
+        }
+      );
+
+      return response.ok;
+    } catch (error) {
+      console.error('Error updating task:', error);
+      return false;
+    }
+  }
+
+  // ============================================================
+  // CONTACTS - CREATE, UPDATE, DELETE
+  // ============================================================
+
+  /**
+   * Create a new contact
+   */
+  async createContact(contact: {
+    givenName?: string;
+    surname?: string;
+    displayName?: string;
+    emailAddresses?: { address: string; name?: string }[];
+    businessPhones?: string[];
+    mobilePhone?: string;
+    companyName?: string;
+    jobTitle?: string;
+  }): Promise<{ id: string } | null> {
+    const token = await this.getAccessToken();
+    if (!token) return null;
+
+    try {
+      const response = await fetch(
+        'https://graph.microsoft.com/v1.0/me/contacts',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(contact),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return { id: data.id };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error creating contact:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update a contact
+   */
+  async updateContact(contactId: string, updates: {
+    givenName?: string;
+    surname?: string;
+    displayName?: string;
+    emailAddresses?: { address: string; name?: string }[];
+    businessPhones?: string[];
+    mobilePhone?: string;
+    companyName?: string;
+    jobTitle?: string;
+  }): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/contacts/${contactId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updates),
+        }
+      );
+
+      return response.ok;
+    } catch (error) {
+      console.error('Error updating contact:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Delete a contact
+   */
+  async deleteContact(contactId: string): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/contacts/${contactId}`,
+        {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      return response.ok || response.status === 204;
+    } catch (error) {
+      console.error('Error deleting contact:', error);
+      return false;
+    }
+  }
+
+  // ============================================================
+  // FOLDERS - CREATE, RENAME, DELETE
+  // ============================================================
+
+  /**
+   * Create a new mail folder
+   */
+  async createFolder(displayName: string, parentFolderId?: string): Promise<{ id: string } | null> {
+    const token = await this.getAccessToken();
+    if (!token) return null;
+
+    try {
+      const url = parentFolderId
+        ? `https://graph.microsoft.com/v1.0/me/mailFolders/${parentFolderId}/childFolders`
+        : 'https://graph.microsoft.com/v1.0/me/mailFolders';
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ displayName }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return { id: data.id };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Rename a mail folder
+   */
+  async renameFolder(folderId: string, newName: string): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/mailFolders/${folderId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ displayName: newName }),
+        }
+      );
+
+      return response.ok;
+    } catch (error) {
+      console.error('Error renaming folder:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Delete a mail folder
+   */
+  async deleteFolder(folderId: string): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/mailFolders/${folderId}`,
+        {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      return response.ok || response.status === 204;
+    } catch (error) {
+      console.error('Error deleting folder:', error);
+      return false;
+    }
+  }
+
+  // ============================================================
+  // MAIL RULES & AUTO-REPLY (OUT OF OFFICE)
+  // ============================================================
+
+  /**
+   * Get mail rules
+   */
+  async getMailRules(): Promise<{
+    id: string;
+    displayName: string;
+    isEnabled: boolean;
+    conditions: any;
+    actions: any;
+  }[]> {
+    const token = await this.getAccessToken();
+    if (!token) return [];
+
+    try {
+      const response = await fetch(
+        'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messageRules',
+        {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.value.map((rule: any) => ({
+          id: rule.id,
+          displayName: rule.displayName,
+          isEnabled: rule.isEnabled,
+          conditions: rule.conditions,
+          actions: rule.actions,
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting mail rules:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Create a mail rule
+   */
+  async createMailRule(rule: {
+    displayName: string;
+    conditions: {
+      fromAddresses?: { address: string }[];
+      subjectContains?: string[];
+      senderContains?: string[];
+    };
+    actions: {
+      moveToFolder?: string;
+      delete?: boolean;
+      markAsRead?: boolean;
+      forwardTo?: { address: string }[];
+    };
+  }): Promise<{ id: string } | null> {
+    const token = await this.getAccessToken();
+    if (!token) return null;
+
+    try {
+      const response = await fetch(
+        'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messageRules',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            displayName: rule.displayName,
+            sequence: 1,
+            isEnabled: true,
+            conditions: rule.conditions,
+            actions: rule.actions,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return { id: data.id };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error creating mail rule:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Delete a mail rule
+   */
+  async deleteMailRule(ruleId: string): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messageRules/${ruleId}`,
+        {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      return response.ok || response.status === 204;
+    } catch (error) {
+      console.error('Error deleting mail rule:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get automatic replies (Out of Office) settings
+   */
+  async getAutoReply(): Promise<{
+    status: 'disabled' | 'alwaysEnabled' | 'scheduled';
+    externalMessage?: string;
+    internalMessage?: string;
+    scheduledStartDateTime?: Date;
+    scheduledEndDateTime?: Date;
+  } | null> {
+    const token = await this.getAccessToken();
+    if (!token) return null;
+
+    try {
+      const response = await fetch(
+        'https://graph.microsoft.com/v1.0/me/mailboxSettings/automaticRepliesSetting',
+        {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          status: data.status,
+          externalMessage: data.externalReplyMessage,
+          internalMessage: data.internalReplyMessage,
+          scheduledStartDateTime: data.scheduledStartDateTime?.dateTime 
+            ? new Date(data.scheduledStartDateTime.dateTime) : undefined,
+          scheduledEndDateTime: data.scheduledEndDateTime?.dateTime 
+            ? new Date(data.scheduledEndDateTime.dateTime) : undefined,
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting auto-reply settings:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Set automatic replies (Out of Office)
+   */
+  async setAutoReply(settings: {
+    status: 'disabled' | 'alwaysEnabled' | 'scheduled';
+    externalMessage?: string;
+    internalMessage?: string;
+    scheduledStartDateTime?: Date;
+    scheduledEndDateTime?: Date;
+    externalAudience?: 'none' | 'contactsOnly' | 'all';
+  }): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const autoReplySettings: any = {
+        status: settings.status,
+      };
+
+      if (settings.externalMessage) {
+        autoReplySettings.externalReplyMessage = settings.externalMessage;
+      }
+      if (settings.internalMessage) {
+        autoReplySettings.internalReplyMessage = settings.internalMessage;
+      }
+      if (settings.scheduledStartDateTime) {
+        autoReplySettings.scheduledStartDateTime = {
+          dateTime: settings.scheduledStartDateTime.toISOString(),
+          timeZone: 'UTC',
+        };
+      }
+      if (settings.scheduledEndDateTime) {
+        autoReplySettings.scheduledEndDateTime = {
+          dateTime: settings.scheduledEndDateTime.toISOString(),
+          timeZone: 'UTC',
+        };
+      }
+      if (settings.externalAudience) {
+        autoReplySettings.externalAudience = settings.externalAudience;
+      }
+
+      const response = await fetch(
+        'https://graph.microsoft.com/v1.0/me/mailboxSettings',
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            automaticRepliesSetting: autoReplySettings,
+          }),
+        }
+      );
+
+      return response.ok;
+    } catch (error) {
+      console.error('Error setting auto-reply:', error);
+      return false;
+    }
+  }
+
+  // ============================================================
+  // SENT ITEMS & DRAFTS
+  // ============================================================
+
+  /**
+   * Get sent items
+   */
+  async getSentItems(count: number = 20): Promise<EmailSummary[]> {
+    const token = await this.getAccessToken();
+    if (!token) return [];
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/mailFolders/sentitems/messages?$top=${count}&$orderby=sentDateTime desc`,
+        {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.value.map((email: any) => ({
+          id: email.id,
+          subject: email.subject,
+          sender: email.from?.emailAddress?.name || 'You',
+          senderEmail: email.from?.emailAddress?.address || '',
+          receivedDateTime: new Date(email.sentDateTime),
+          preview: email.bodyPreview || '',
+          isRead: true,
+          importance: email.importance,
+          hasAttachments: email.hasAttachments,
+          conversationId: email.conversationId,
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting sent items:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get draft emails
+   */
+  async getDrafts(count: number = 20): Promise<EmailSummary[]> {
+    const token = await this.getAccessToken();
+    if (!token) return [];
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/mailFolders/drafts/messages?$top=${count}&$orderby=lastModifiedDateTime desc`,
+        {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.value.map((email: any) => ({
+          id: email.id,
+          subject: email.subject || '(No subject)',
+          sender: 'Draft',
+          senderEmail: '',
+          receivedDateTime: new Date(email.lastModifiedDateTime),
+          preview: email.bodyPreview || '',
+          isRead: true,
+          importance: email.importance,
+          hasAttachments: email.hasAttachments,
+          conversationId: email.conversationId,
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting drafts:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Send a draft email
+   */
+  async sendDraft(draftId: string): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/messages/${draftId}/send`,
+        {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      return response.ok || response.status === 202;
+    } catch (error) {
+      console.error('Error sending draft:', error);
+      return false;
+    }
+  }
+
+  /**
    * Mock emails for development/testing
    */
   private getMockEmails(count: number = 10): EmailSummary[] {

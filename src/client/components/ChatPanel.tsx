@@ -11,6 +11,9 @@ import { v4 as uuidv4 } from 'uuid';
 // Lazy load graph service to avoid bundling MSAL
 const loadGraphService = () => import(/* webpackChunkName: "graph-service" */ '../services/graphService');
 
+// Lazy load action executor
+const loadActionExecutor = () => import(/* webpackChunkName: "action-executor" */ '../services/actionExecutor');
+
 // Types defined inline to avoid importing documentService at build time
 type DocumentType = 'word' | 'pdf' | 'excel' | 'powerpoint';
 type TemplateType = 'professional-report' | 'meeting-summary' | 'project-status' | 'data-analysis' | 'sales-pitch' | 'email-summary' | 'action-items' | 'custom';
@@ -408,10 +411,85 @@ const ChatPanel: React.FC = () => {
       const parsed = autonomousAgent.parseAgentResponse(response.content);
       
       // ========================================
-      // PHASE 3: DISPLAY RESULTS & HANDLE APPROVALS
+      // PHASE 3: EXECUTE AI ACTIONS AUTOMATICALLY
       // ========================================
       
-      // Store any pending approvals
+      // Check for action commands in the AI response
+      const { parseActionsFromResponse, executeAction } = await loadActionExecutor();
+      const aiActions = parseActionsFromResponse(response.content);
+      
+      // Execute safe read-only actions automatically
+      const safeActions = ['search', 'search_emails', 'get_unread', 'unread', 'get_calendar', 'calendar', 
+                          'get_tasks', 'tasks', 'get_contacts', 'contacts', 'get_folders', 'folders',
+                          'get_email_details', 'details', 'get_emails_from_sender', 'from_sender', 'search_contacts'];
+      
+      // Actions that need approval
+      const needsApprovalActions = ['send_email', 'send', 'reply_email', 'reply', 'forward_email', 'forward',
+                                    'delete_email', 'delete', 'create_event', 'schedule', 'meeting'];
+      
+      for (const action of aiActions) {
+        if (safeActions.includes(action.type)) {
+          // Execute read-only actions immediately
+          console.log('🤖 Auto-executing safe action:', action.type);
+          const result = await executeAction(action);
+          
+          if (result.success && result.data) {
+            // Show the results
+            let resultSummary = '';
+            
+            if (Array.isArray(result.data)) {
+              if (result.data.length > 0) {
+                // Format based on data type
+                if (result.data[0].subject !== undefined) {
+                  // Email results
+                  resultSummary = result.data.slice(0, 8).map((e: any, i: number) => 
+                    `${i + 1}. **${e.sender || e.senderEmail}**: ${e.subject}`
+                  ).join('\n');
+                } else if (result.data[0].title !== undefined) {
+                  // Task results
+                  resultSummary = result.data.slice(0, 10).map((t: any, i: number) => 
+                    `${i + 1}. ${t.title}${t.dueDate ? ` (Due: ${new Date(t.dueDate).toLocaleDateString()})` : ''}`
+                  ).join('\n');
+                } else if (result.data[0].displayName !== undefined && result.data[0].unreadItemCount !== undefined) {
+                  // Folder results
+                  resultSummary = result.data.map((f: any) => 
+                    `📁 ${f.displayName}${f.unreadItemCount > 0 ? ` (${f.unreadItemCount} unread)` : ''}`
+                  ).join('\n');
+                } else if (result.data[0].displayName !== undefined) {
+                  // Contact results
+                  resultSummary = result.data.slice(0, 10).map((c: any) => 
+                    `👤 ${c.displayName}${c.emailAddresses?.length ? ` - ${c.emailAddresses[0]}` : ''}`
+                  ).join('\n');
+                }
+              }
+            }
+            
+            if (resultSummary) {
+              addMessage({
+                id: uuidv4(),
+                role: 'assistant',
+                content: `📊 **${result.message}**\n\n${resultSummary}`,
+                timestamp: new Date(),
+              });
+            }
+          }
+        } else if (needsApprovalActions.includes(action.type)) {
+          // Queue for approval
+          const approval = {
+            id: uuidv4(),
+            type: action.type,
+            description: getActionDescription(action),
+            details: action.params,
+          };
+          setPendingApprovals(prev => [...prev, approval]);
+        }
+      }
+      
+      // ========================================
+      // PHASE 4: DISPLAY RESULTS & HANDLE APPROVALS
+      // ========================================
+      
+      // Store any pending approvals from parsing
       if (parsed.pendingApprovals.length > 0) {
         const newApprovals = parsed.pendingApprovals.map(a => ({
           id: uuidv4(),
@@ -465,6 +543,37 @@ const ChatPanel: React.FC = () => {
       });
     } finally {
       setIsProcessing(false);
+    }
+  };
+  
+  // Helper to get human-readable description of an action
+  const getActionDescription = (action: { type: string; params: Record<string, any> }): string => {
+    const { type, params } = action;
+    switch (type) {
+      case 'send_email':
+      case 'send':
+        return `Send email to ${params.to} - Subject: "${params.subject}"`;
+      case 'reply_email':
+      case 'reply':
+        return `Reply to email`;
+      case 'forward_email':
+      case 'forward':
+        return `Forward email to ${params.to}`;
+      case 'delete_email':
+      case 'delete':
+        return `Delete email`;
+      case 'archive_email':
+      case 'archive':
+        return `Archive email`;
+      case 'create_event':
+      case 'schedule':
+      case 'meeting':
+        return `Create calendar event: "${params.subject}" on ${params.start}`;
+      case 'create_task':
+      case 'task':
+        return `Create task: "${params.title}"`;
+      default:
+        return `Execute: ${type}`;
     }
   };
   
