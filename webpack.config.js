@@ -64,6 +64,12 @@ module.exports = {
       chunks: [],
       inject: false,
     }),
+    new HtmlWebpackPlugin({
+      template: './src/client/auth-dialog.html',
+      filename: 'auth-dialog.html',
+      chunks: [],
+      inject: false,
+    }),
     new CopyWebpackPlugin({
       patterns: [
         {

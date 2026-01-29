@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In - Outlook AI</title>
+    <script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+            color: white;
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #00ff88;
+            animation: spin 1s ease-in-out infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        h2 { margin-bottom: 10px; }
+        p { color: rgba(255,255,255,0.7); }
+        .error { color: #ff6b6b; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="spinner"></div>
+        <h2>Signing you in...</h2>
+        <p>Please wait while we authenticate</p>
+        <div id="error" class="error" style="display:none;"></div>
+    </div>
+
+    <script>
+        // Azure AD configuration - same as main app
+        const msalConfig = {
+            auth: {
+                clientId: 'de86f8c9-815b-415c-94fc-b13163799862',
+                authority: 'https://login.microsoftonline.com/common',
+                redirectUri: window.location.origin + '/auth-dialog.html',
+                navigateToLoginRequestUrl: false
+            },
+            cache: {
+                cacheLocation: 'localStorage'
+            }
+        };
+
+        const graphScopes = ['User.Read', 'Mail.Read', 'Mail.ReadWrite', 'Calendars.Read'];
+
+        // Initialize MSAL
+        const msalInstance = new msal.PublicClientApplication(msalConfig);
+
+        async function handleAuth() {
+            try {
+                await msalInstance.initialize();
+                
+                // Check if this is a redirect response
+                const response = await msalInstance.handleRedirectPromise();
+                
+                if (response) {
+                    // Successful login via redirect
+                    console.log('Auth successful:', response);
+                    
+                    // Send result back to parent Office add-in
+                    if (Office && Office.context && Office.context.ui) {
+                        Office.context.ui.messageParent(JSON.stringify({
+                            status: 'success',
+                            account: {
+                                username: response.account.username,
+                                name: response.account.name,
+                                homeAccountId: response.account.homeAccountId
+                            },
+                            accessToken: response.accessToken
+                        }));
+                    } else {
+                        // Fallback for testing outside Office
+                        window.opener?.postMessage({
+                            status: 'success',
+                            account: response.account
+                        }, '*');
+                        window.close();
+                    }
+                    return;
+                }
+                
+                // No redirect response, start login
+                const accounts = msalInstance.getAllAccounts();
+                
+                if (accounts.length > 0) {
+                    // Already logged in, get token silently
+                    try {
+                        const tokenResponse = await msalInstance.acquireTokenSilent({
+                            scopes: graphScopes,
+                            account: accounts[0]
+                        });
+                        
+                        if (Office && Office.context && Office.context.ui) {
+                            Office.context.ui.messageParent(JSON.stringify({
+                                status: 'success',
+                                account: {
+                                    username: tokenResponse.account.username,
+                                    name: tokenResponse.account.name,
+                                    homeAccountId: tokenResponse.account.homeAccountId
+                                },
+                                accessToken: tokenResponse.accessToken
+                            }));
+                        }
+                        return;
+                    } catch (silentError) {
+                        console.log('Silent acquisition failed, redirecting to login');
+                    }
+                }
+                
+                // Start login redirect
+                await msalInstance.loginRedirect({
+                    scopes: graphScopes,
+                    prompt: 'select_account'
+                });
+                
+            } catch (error) {
+                console.error('Auth error:', error);
+                const errorDiv = document.getElementById('error');
+                errorDiv.style.display = 'block';
+                errorDiv.textContent = 'Authentication failed: ' + (error.message || error);
+                
+                // Send error back to parent
+                if (Office && Office.context && Office.context.ui) {
+                    Office.context.ui.messageParent(JSON.stringify({
+                        status: 'error',
+                        error: error.message || 'Authentication failed'
+                    }));
+                }
+            }
+        }
+
+        // Load Office.js if available, then start auth
+        (function() {
+            // Try to load Office.js for messageParent functionality
+            const officeScript = document.createElement('script');
+            officeScript.src = 'https://appsforoffice.microsoft.com/lib/1.1/hosted/office.js';
+            officeScript.onload = function() {
+                Office.onReady(function() {
+                    handleAuth();
+                });
+            };
+            officeScript.onerror = function() {
+                // Office.js not available, still try auth (for testing)
+                handleAuth();
+            };
+            document.head.appendChild(officeScript);
+        })();
+    </script>
+</body>
+</html>

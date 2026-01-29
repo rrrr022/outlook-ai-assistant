@@ -7,6 +7,9 @@ interface MsalConfiguration {
   system?: { loggerOptions?: { loggerCallback?: (level: number, message: string, containsPii: boolean) => void } };
 }
 
+// Declare Office types
+declare const Office: any;
+
 // Lazy load MSAL with webpack magic comment for true code splitting
 let msalModule: any = null;
 async function loadMsal() {
@@ -19,6 +22,12 @@ async function loadMsal() {
 // Your Azure AD App Registration
 const AZURE_CLIENT_ID = environment.azure.clientId;
 const REDIRECT_URI = environment.azure.redirectUri;
+
+// Auth dialog URL
+const getAuthDialogUrl = () => {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  return `${origin}/auth-dialog.html`;
+};
 
 const msalConfig: MsalConfiguration = {
   auth: {
@@ -94,12 +103,99 @@ class MsalService {
   }
 
   /**
-   * Sign in with popup
+   * Sign in using Office Dialog API (recommended for Office Add-ins)
    */
   async signIn(): Promise<any | null> {
     await this.initialize();
     if (!this.msalInstance) throw new Error('MSAL not initialized');
 
+    // Check if we're in Office context and can use Dialog API
+    if (typeof Office !== 'undefined' && Office.context && Office.context.ui) {
+      return this.signInWithOfficeDialog();
+    }
+    
+    // Fallback to popup for non-Office contexts (e.g., local testing)
+    return this.signInWithPopup();
+  }
+
+  /**
+   * Sign in using Office Dialog API
+   */
+  private async signInWithOfficeDialog(): Promise<any | null> {
+    return new Promise((resolve, reject) => {
+      const dialogUrl = getAuthDialogUrl();
+      console.log('📤 Opening auth dialog:', dialogUrl);
+      
+      Office.context.ui.displayDialogAsync(
+        dialogUrl,
+        { 
+          height: 60, 
+          width: 40,
+          promptBeforeOpen: false
+        },
+        (asyncResult: any) => {
+          if (asyncResult.status === Office.AsyncResultStatus.Failed) {
+            console.error('❌ Failed to open dialog:', asyncResult.error.message);
+            reject(new Error(asyncResult.error.message));
+            return;
+          }
+
+          const dialog = asyncResult.value;
+          console.log('📤 Auth dialog opened');
+
+          // Handle messages from the dialog
+          dialog.addEventHandler(
+            Office.EventType.DialogMessageReceived,
+            async (arg: any) => {
+              dialog.close();
+              
+              try {
+                const message = JSON.parse(arg.message);
+                console.log('📨 Received message from dialog:', message.status);
+                
+                if (message.status === 'success') {
+                  // Reinitialize MSAL to pick up the new cached tokens
+                  this.msalInstance = null;
+                  this.initialized = false;
+                  this.initPromise = null;
+                  await this.initialize();
+                  
+                  console.log('✅ Login successful:', message.account?.username);
+                  resolve({
+                    account: message.account,
+                    accessToken: message.accessToken
+                  });
+                } else {
+                  console.error('❌ Login failed:', message.error);
+                  reject(new Error(message.error || 'Authentication failed'));
+                }
+              } catch (error) {
+                console.error('❌ Error parsing dialog message:', error);
+                reject(error);
+              }
+            }
+          );
+
+          // Handle dialog closed by user
+          dialog.addEventHandler(
+            Office.EventType.DialogEventReceived,
+            (arg: any) => {
+              console.log('📤 Dialog event:', arg.error);
+              if (arg.error === 12006) {
+                // Dialog closed by user
+                reject(new Error('User cancelled the sign-in'));
+              }
+            }
+          );
+        }
+      );
+    });
+  }
+
+  /**
+   * Sign in with popup (fallback for non-Office contexts)
+   */
+  private async signInWithPopup(): Promise<any | null> {
     const request = {
       scopes: graphScopes,
       prompt: 'select_account',
