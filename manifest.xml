@@ -26,10 +26,10 @@
     <Host Name="Mailbox"/>
   </Hosts>
   
-  <!-- MinVersion 1.13 for SupportsNoItemContext (persistent pinning) -->
+  <!-- MinVersion 1.5 for broad compatibility -->
   <Requirements>
     <Sets>
-      <Set Name="Mailbox" MinVersion="1.13"/>
+      <Set Name="Mailbox" MinVersion="1.5"/>
     </Sets>
   </Requirements>
   
@@ -59,7 +59,7 @@
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides" xsi:type="VersionOverridesV1_0">
     <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1" xsi:type="VersionOverridesV1_1">
       <Requirements>
-        <bt:Sets DefaultMinVersion="1.13">
+        <bt:Sets DefaultMinVersion="1.5">
           <bt:Set Name="Mailbox"/>
         </bt:Sets>
       </Requirements>
@@ -86,7 +86,7 @@
                     <Action xsi:type="ShowTaskpane">
                       <SourceLocation resid="Taskpane.Url"/>
                       <SupportsPinning>true</SupportsPinning>
-                      <SupportsNoItemContext>true</SupportsNoItemContext>
+                      
                     </Action>
                   </Control>
                 </Group>
@@ -112,7 +112,7 @@
                     <Action xsi:type="ShowTaskpane">
                       <SourceLocation resid="Taskpane.Url"/>
                       <SupportsPinning>true</SupportsPinning>
-                      <SupportsNoItemContext>true</SupportsNoItemContext>
+                      
                     </Action>
                   </Control>
                 </Group>
@@ -138,7 +138,7 @@
                     <Action xsi:type="ShowTaskpane">
                       <SourceLocation resid="Taskpane.Url"/>
                       <SupportsPinning>true</SupportsPinning>
-                      <SupportsNoItemContext>true</SupportsNoItemContext>
+                      
                     </Action>
                   </Control>
                 </Group>
@@ -164,7 +164,7 @@
                     <Action xsi:type="ShowTaskpane">
                       <SourceLocation resid="Taskpane.Url"/>
                       <SupportsPinning>true</SupportsPinning>
-                      <SupportsNoItemContext>true</SupportsNoItemContext>
+                      
                     </Action>
                   </Control>
                 </Group>
