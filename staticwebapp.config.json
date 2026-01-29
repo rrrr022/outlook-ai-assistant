@@ -1,7 +1,19 @@
 {
   "navigationFallback": {
     "rewrite": "/taskpane.html",
-    "exclude": ["/assets/*", "/*.js", "/*.css", "/*.png", "/*.ico", "/api/*", "/*.xml", "/*.json"]
+    "exclude": [
+      "/assets/*",
+      "*.js",
+      "*.css",
+      "*.png",
+      "*.ico",
+      "*.xml",
+      "*.json",
+      "/api/*",
+      "/manifest.xml",
+      "/manifest.azure.xml",
+      "/manifest-production.xml"
+    ]
   },
   "routes": [
     {
@@ -19,8 +31,11 @@
       }
     },
     {
-      "route": "/taskpane.html",
-      "rewrite": "/taskpane.html"
+      "route": "/manifest-production.xml",
+      "headers": {
+        "Content-Type": "application/xml",
+        "Cache-Control": "no-cache"
+      }
     },
     {
       "route": "/assets/*",
