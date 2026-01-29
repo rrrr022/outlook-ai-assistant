@@ -56,6 +56,9 @@ class MsalService {
   private msalInstance: any = null;
   private initialized: boolean = false;
   private initPromise: Promise<void> | null = null;
+  // Cache the token from dialog auth
+  private cachedAccessToken: string | null = null;
+  private cachedAccount: { username: string; name: string; homeAccountId: string } | null = null;
 
   /**
    * Initialize MSAL - must be called before any auth operations
@@ -88,6 +91,9 @@ class MsalService {
    * Check if user is signed in
    */
   isSignedIn(): boolean {
+    // First check our cached account from dialog auth
+    if (this.cachedAccount) return true;
+    
     if (!this.msalInstance) return false;
     const accounts = this.msalInstance.getAllAccounts();
     return accounts.length > 0;
@@ -97,6 +103,9 @@ class MsalService {
    * Get current account
    */
   getAccount() {
+    // First check cached account from dialog auth
+    if (this.cachedAccount) return this.cachedAccount;
+    
     if (!this.msalInstance) return null;
     const accounts = this.msalInstance.getAllAccounts();
     return accounts.length > 0 ? accounts[0] : null;
@@ -154,13 +163,18 @@ class MsalService {
                 console.log('📨 Received message from dialog:', message.status);
                 
                 if (message.status === 'success') {
-                  // Reinitialize MSAL to pick up the new cached tokens
+                  // Cache the account and token from the dialog
+                  this.cachedAccount = message.account;
+                  this.cachedAccessToken = message.accessToken;
+                  
+                  // Try to reinitialize MSAL to pick up the new cached tokens
                   this.msalInstance = null;
                   this.initialized = false;
                   this.initPromise = null;
                   await this.initialize();
                   
                   console.log('✅ Login successful:', message.account?.username);
+                  console.log('✅ Account cached, isSignedIn:', this.isSignedIn());
                   resolve({
                     account: message.account,
                     accessToken: message.accessToken
@@ -231,6 +245,12 @@ class MsalService {
    * Get access token for Microsoft Graph
    */
   async getAccessToken(): Promise<string | null> {
+    // First check if we have a cached token from dialog auth
+    if (this.cachedAccessToken) {
+      console.log('✅ Using cached access token from dialog auth');
+      return this.cachedAccessToken;
+    }
+    
     await this.initialize();
     if (!this.msalInstance) return null;
 
@@ -251,17 +271,17 @@ class MsalService {
       console.log('✅ Got token silently');
       return response.accessToken;
     } catch (silentError) {
-      console.log('Silent token acquisition failed, trying popup');
+      console.log('Silent token acquisition failed, trying dialog');
       
       try {
-        // Fall back to popup
-        const response = await this.msalInstance.acquireTokenPopup({
-          scopes: graphScopes,
-        });
-        console.log('✅ Got token via popup');
-        return response.accessToken;
-      } catch (popupError) {
-        console.error('❌ Token acquisition failed:', popupError);
+        // Fall back to dialog-based auth for Office Add-ins
+        const result = await this.signIn();
+        if (result?.accessToken) {
+          return result.accessToken;
+        }
+        return null;
+      } catch (dialogError) {
+        console.error('❌ Token acquisition failed:', dialogError);
         return null;
       }
     }
