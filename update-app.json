@@ -1,0 +1,11 @@
+{
+    "spa": {
+        "redirectUris": [
+            "https://zealous-ground-01f6af20f.2.azurestaticapps.net/taskpane.html",
+            "https://localhost:8080/taskpane.html"
+        ]
+    },
+    "web": {
+        "redirectUris": []
+    }
+}
