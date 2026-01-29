@@ -308,9 +308,17 @@ When users ask for reports, summaries, presentations, or spreadsheets:
 Be concise, professional, and helpful. FORMAT RESPONSES WITH MARKDOWN.
 Most importantly: BE PROACTIVE AND TAKE ACTION rather than asking the user to do things themselves.`;
 
+        // Truncate prompt if too long for GitHub Models (8000 token limit ≈ 30000 chars)
+        let userPrompt = request.prompt;
+        const maxChars = 25000; // Leave room for system prompt
+        if (userPrompt.length > maxChars) {
+          console.warn(`⚠️ Prompt too long (${userPrompt.length} chars), truncating to ${maxChars}`);
+          userPrompt = userPrompt.substring(0, maxChars) + '\n\n[Content truncated due to length...]';
+        }
+
         const messages = [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: request.prompt },
+          { role: 'user', content: userPrompt },
         ];
 
         // GitHub Models requires CORS proxy - route through backend
