@@ -486,13 +486,17 @@ Most importantly: BE PROACTIVE AND TAKE ACTION rather than asking the user to do
       };
     }
 
-    if (lowercasePrompt.includes('summarize')) {
+    // Log what's happening for debugging
+    console.log('⚠️ AI Fallback triggered:', { error: errorMsg, promptStart: lowercasePrompt.substring(0, 100) });
+
+    // Only use summarize fallback for actual email summarization, not inbox searches
+    if (lowercasePrompt.includes('summarize this email') || lowercasePrompt.includes('summarize the email')) {
       return {
         content: 'This email discusses project updates and requests a meeting to review progress. Key points include: deadline adjustments, resource allocation, and next steps for the team.',
       };
     }
 
-    if (lowercasePrompt.includes('reply') || lowercasePrompt.includes('draft')) {
+    if (lowercasePrompt.includes('reply') || lowercasePrompt.includes('draft a reply')) {
       return {
         content: `Thank you for your email. I appreciate you reaching out about this matter.
 
@@ -540,8 +544,9 @@ Best regards`,
       };
     }
 
+    // Default fallback with error info
     return {
-      content: 'I understand your request. How can I help you further with your email, calendar, or tasks? You can ask me to summarize emails, draft replies, extract action items, or help plan your day.',
+      content: `⚠️ **AI Service Error**\n\nI couldn't process your request. This usually means:\n\n1. **No API key configured** - Go to Settings ⚙️ and add your AI provider key\n2. **API error** - The AI service returned an error\n\n_Technical details: ${errorMsg}_\n\nYour search results are still available above. You can try again or configure an AI provider in settings.`,
     };
   }
 }

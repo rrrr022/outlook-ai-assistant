@@ -281,16 +281,21 @@ const ChatPanel: React.FC = () => {
       
       // Detect if we need to search (the agent will decide, but we can pre-fetch)
       const lowerText = text.toLowerCase();
-      const needsSearch = /search|find|look for|any.*from|emails? (from|about)|do i have/i.test(lowerText);
-      const needsInboxSummary = /review.*inbox|inbox.*summary|show.*inbox|scan.*inbox/i.test(lowerText);
+      
+      // Check for specific search targets in the message
+      const hasSearchTarget = /activated carbon|patent|distributor|supplier|vendor|pricing|quote/i.test(lowerText);
+      const needsSearch = hasSearchTarget || /search|find|look for|any.*from|emails? (from|about)|do i have/i.test(lowerText);
+      const needsInboxSummary = /review.*inbox|inbox.*summary|show.*inbox|scan.*inbox/i.test(lowerText) && !hasSearchTarget;
       
       let searchResults: any[] = [];
       let inboxSummary: any = null;
       
-      // Auto-execute search if needed
+      // Auto-execute search if needed (this takes priority)
       if (needsSearch && graphService.isSignedIn) {
         // Extract search terms
         const searchTerms = extractSearchTerms(text);
+        console.log('🔍 Extracted search terms:', searchTerms);
+        
         if (searchTerms.length > 0) {
           addMessage({
             id: uuidv4(),
@@ -300,18 +305,45 @@ const ChatPanel: React.FC = () => {
           });
           
           for (const term of searchTerms) {
+            console.log(`🔍 Searching for: "${term}"`);
             const results = await graphService.searchEmails(term, 30);
+            console.log(`📬 Found ${results.length} results for "${term}"`);
             searchResults = [...searchResults, ...results];
           }
           
           // Deduplicate
           searchResults = Array.from(new Map(searchResults.map(r => [r.id, r])).values());
           autonomousAgent.setSearchResults(searchResults);
+          
+          // Show search results immediately
+          if (searchResults.length > 0) {
+            const uniqueSenders = Array.from(
+              new Map(searchResults.map(r => [r.senderEmail, { name: r.sender, email: r.senderEmail }])).values()
+            );
+            
+            const resultsSummary = searchResults.slice(0, 8).map((e: any, i: number) => 
+              `${i + 1}. **${e.sender}** <${e.senderEmail}>\n   📧 ${e.subject}\n   📅 ${new Date(e.receivedDateTime).toLocaleDateString()}`
+            ).join('\n\n');
+            
+            addMessage({
+              id: uuidv4(),
+              role: 'assistant',
+              content: `📬 **Found ${searchResults.length} emails** (${uniqueSenders.length} unique senders)\n\n${resultsSummary}`,
+              timestamp: new Date(),
+            });
+          } else {
+            addMessage({
+              id: uuidv4(),
+              role: 'assistant',
+              content: `📭 **No emails found** matching "${searchTerms.join(', ')}". Try different search terms.`,
+              timestamp: new Date(),
+            });
+          }
         }
       }
       
-      // Auto-execute inbox summary if needed
-      if (needsInboxSummary && graphService.isSignedIn) {
+      // Auto-execute inbox summary if needed (only if not searching)
+      else if (needsInboxSummary && graphService.isSignedIn) {
         addMessage({
           id: uuidv4(),
           role: 'assistant',
@@ -402,36 +434,55 @@ const ChatPanel: React.FC = () => {
   // Helper to extract search terms from user message
   const extractSearchTerms = (message: string): string[] => {
     const terms: string[] = [];
+    const lowerMsg = message.toLowerCase();
+    
+    // Direct keyword extraction - high priority terms
+    const directKeywords = [
+      'activated carbon',
+      'patent office',
+      'uspto',
+    ];
+    
+    for (const keyword of directKeywords) {
+      if (lowerMsg.includes(keyword) && !terms.includes(keyword)) {
+        terms.push(keyword);
+      }
+    }
     
     // Common patterns
     const patterns = [
-      /(?:from|by)\s+(?:the\s+)?([a-z0-9\s\-\.@]+?)(?:\s+(?:in|about|and|asking)|$)/gi,
-      /(?:about|regarding)\s+([a-z0-9\s\-]+?)(?:\s+(?:in|from|and)|$)/gi,
-      /([a-z0-9\s\-]+?)\s+(?:distributors?|suppliers?|vendors?)/gi,
-      /(patent office|uspto|activated carbon|pricing)/gi,
+      /(?:from|by)\s+(?:the\s+)?([a-z0-9\s\-\.@]+?)(?:\s+(?:in|about|and|asking|then)|$)/gi,
+      /(?:about|regarding)\s+([a-z0-9\s\-]+?)(?:\s+(?:in|from|and|then)|$)/gi,
+      /(?:any\s+)?([a-z0-9\s\-]+?)\s+(?:distributors?|suppliers?|vendors?|companies?)/gi,
+      /(?:for\s+(?:any\s+)?)?([a-z0-9\s\-]+?)\s+(?:distribut|suppli|vendor)/gi,
     ];
     
     for (const pattern of patterns) {
       let match;
+      pattern.lastIndex = 0; // Reset regex
       while ((match = pattern.exec(message)) !== null) {
         const term = match[1]?.trim();
-        if (term && term.length > 2 && !terms.includes(term.toLowerCase())) {
+        if (term && term.length > 2 && !terms.some(t => t.toLowerCase() === term.toLowerCase())) {
+          // Don't add generic words
+          const skipWords = ['any', 'the', 'all', 'my', 'inbox', 'email', 'emails', 'review', 'then', 'lets', 'make'];
+          if (!skipWords.includes(term.toLowerCase())) {
+            terms.push(term);
+          }
+        }
+      }
+    }
+    
+    // If no patterns matched and we have specific industry terms, use those
+    if (terms.length === 0) {
+      const industryTerms = ['carbon', 'chemical', 'steel', 'plastic', 'metal', 'supply'];
+      for (const term of industryTerms) {
+        if (lowerMsg.includes(term)) {
           terms.push(term);
         }
       }
     }
     
-    // If no patterns matched, use key nouns from the message
-    if (terms.length === 0) {
-      const cleaned = message
-        .replace(/^(please|can you|could you|i need to|i want to|search|find|look for|show me|get)\s*/gi, '')
-        .replace(/\s*(in my inbox|from my email|please)$/gi, '')
-        .trim();
-      if (cleaned.length > 2) {
-        terms.push(cleaned);
-      }
-    }
-    
+    console.log('📝 Extracted terms from message:', terms);
     return terms.slice(0, 3); // Limit to 3 search terms
   };
 
