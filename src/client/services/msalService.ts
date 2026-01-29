@@ -18,12 +18,13 @@ async function loadMsal() {
 
 // Your Azure AD App Registration
 const AZURE_CLIENT_ID = environment.azure.clientId;
+const REDIRECT_URI = environment.azure.redirectUri;
 
 const msalConfig: MsalConfiguration = {
   auth: {
     clientId: AZURE_CLIENT_ID,
     authority: environment.azure.authority,
-    redirectUri: environment.azure.redirectUri,
+    redirectUri: REDIRECT_URI,
   },
   cache: {
     cacheLocation: 'localStorage',
@@ -125,7 +126,7 @@ class MsalService {
     if (account) {
       await this.msalInstance.logoutPopup({
         account,
-        postLogoutRedirectUri: 'https://localhost:8080/taskpane.html',
+        postLogoutRedirectUri: REDIRECT_URI,
       });
     }
   }
