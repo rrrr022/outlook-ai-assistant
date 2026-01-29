@@ -75,6 +75,29 @@ class AIService {
   }
 
   /**
+   * Normalize Anthropic model names to valid API model IDs
+   * GitHub Models uses short names like 'claude-3-opus' but
+   * Anthropic's API requires full names like 'claude-3-opus-20240229' or '-latest'
+   */
+  private normalizeAnthropicModel(model: string): string {
+    const modelMappings: Record<string, string> = {
+      // Short names to full dated versions
+      'claude-3-opus': 'claude-3-opus-20240229',
+      'claude-3-sonnet': 'claude-3-sonnet-20240229',
+      'claude-3-haiku': 'claude-3-haiku-20240307',
+      'claude-3-5-sonnet': 'claude-3-5-sonnet-20241022',
+      'claude-3-5-sonnet-v2': 'claude-3-5-sonnet-20241022',
+      'claude-3-5-haiku': 'claude-3-5-haiku-20241022',
+      // Latest variants are already valid
+      'claude-3-opus-latest': 'claude-3-opus-latest',
+      'claude-3-5-sonnet-latest': 'claude-3-5-sonnet-latest',
+      'claude-3-haiku-20240307': 'claude-3-haiku-20240307',
+    };
+    
+    return modelMappings[model] || model;
+  }
+
+  /**
    * Make a request through our backend proxy (server key mode)
    */
   private async proxyRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -136,7 +159,7 @@ class AIService {
       body: JSON.stringify({
         model,
         messages,
-        max_tokens: 1000,
+        max_tokens: 4096,
         temperature: 0.7,
       }),
     });
@@ -158,6 +181,10 @@ class AIService {
     model: string,
     messages: Array<{ role: string; content: string }>
   ): Promise<string> {
+    // Normalize model name - Anthropic requires full version names or -latest suffix
+    const normalizedModel = this.normalizeAnthropicModel(model);
+    console.log(`🔮 Anthropic model: ${model} → ${normalizedModel}`);
+    
     // Extract system message if present
     const systemMessage = messages.find(m => m.role === 'system');
     const chatMessages = messages.filter(m => m.role !== 'system');
@@ -171,8 +198,8 @@ class AIService {
         'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
-        model,
-        max_tokens: 1024,
+        model: normalizedModel,
+        max_tokens: 8192,
         system: systemMessage?.content || 'You are a helpful AI assistant for Microsoft Outlook.',
         messages: chatMessages.map(m => ({
           role: m.role === 'assistant' ? 'assistant' : 'user',
@@ -210,7 +237,7 @@ class AIService {
       },
       body: JSON.stringify({
         messages,
-        max_tokens: 1000,
+        max_tokens: 4096,
         temperature: 0.7,
       }),
     });

@@ -44,7 +44,7 @@ When extracting tasks, be specific and actionable.`;
 
       const message = await (this.client as any).messages.create({
         model: this.model,
-        max_tokens: 1024,
+        max_tokens: 8192,
         system: systemMessage,
         messages: [
           { role: 'user', content: request.prompt },

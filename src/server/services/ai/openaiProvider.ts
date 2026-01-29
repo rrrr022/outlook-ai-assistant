@@ -49,7 +49,7 @@ When extracting tasks, be specific and actionable.`;
           { role: 'user', content: request.prompt },
         ],
         temperature: 0.7,
-        max_tokens: 1000,
+        max_tokens: 4096,
       });
 
       const content = completion.choices[0]?.message?.content || '';

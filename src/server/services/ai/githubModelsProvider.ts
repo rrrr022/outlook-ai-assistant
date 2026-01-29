@@ -71,7 +71,7 @@ IMPORTANT: Answer the user's actual question. Do not provide generic email templ
             { role: 'user', content: request.prompt },
           ],
           temperature: 0.7,
-          max_tokens: 1000,
+          max_tokens: 4096,
         }),
       });
 
