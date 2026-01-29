@@ -4,6 +4,7 @@ import { useAppStore } from '../store/appStore';
 import { aiService } from '../services/aiService';
 import { outlookService } from '../services/outlookService';
 import { brandingService, UserBranding } from '../services/brandingService';
+import { agentService } from '../services/agentService';
 import BrandingPanel from './BrandingPanel';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -175,158 +176,332 @@ const ChatPanel: React.FC = () => {
       timestamp: new Date(),
     });
 
+    // Also add to agent context
+    agentService.addToHistory({
+      role: 'user',
+      content: text,
+      timestamp: new Date(),
+    });
+
     setInput('');
     setIsProcessing(true);
 
     try {
-      // Detect action requests - be specific to avoid false positives
-      const wantsMarkAsRead = /mark.*read|mark.*as read|mark all.*read|mark them.*read/i.test(text);
-      const wantsReviewUnread = /review.*unread|unread email|unopen email/i.test(text);
-      // Only trigger inbox mode for explicit inbox scanning requests, not general questions
-      const isInboxScanRequest = /^(review|scan|check|show|list).*(inbox|all.*email|entire|unread)/i.test(text) || 
-                                  /^(what|how many).*(unread|inbox)/i.test(text);
-      const isSearchRequest = /search|find|look for|emails from|emails about/i.test(text);
-      const isSummarizeRequest = /summarize|summary|tldr|what.*about|key points/i.test(text);
-      const isReplyRequest = /reply|respond|draft|write back|answer/i.test(text);
-      const isTaskRequest = /action item|task|todo|to-do|extract.*task|create.*task/i.test(text);
-      
-      console.log('Request detection:', { wantsMarkAsRead, isInboxScanRequest, isSummarizeRequest, isReplyRequest });
-      
-      // Get current email context - THIS WORKS without Graph API
-      const emailContext = await outlookService.getCurrentEmailContext();
-      const calendarContext = await outlookService.getUpcomingEvents(7);
-      
-      // Lazy load graph service for inbox scanning
       const { graphService } = await loadGraphService();
       
-      console.log('Email context:', emailContext ? `Got email: ${emailContext.subject}` : 'No email selected');
-      console.log('Graph signed in:', graphService.isSignedIn);
+      // Detect user intent using the intelligent agent
+      const intent = agentService.detectIntent(text);
+      console.log('🧠 Detected intent:', intent);
 
-      // Handle explicit inbox-wide scanning requests
-      if (isInboxScanRequest || wantsReviewUnread) {
-        // If signed in to Microsoft, use Graph API for real inbox access
-        if (graphService.isSignedIn) {
-          try {
+      // Get current email context
+      const emailContext = await outlookService.getCurrentEmailContext();
+      
+      // ========================================
+      // INTELLIGENT ACTION EXECUTION
+      // ========================================
+      
+      // Handle follow-up (user said "please" or "yes" after being asked)
+      if (intent.type === 'follow_up') {
+        const context = agentService.getContext();
+        if (context.pendingAction === 'search' && context.lastSearchQuery) {
+          // User confirmed they want to search
+          intent.type = 'search';
+          intent.entities.searchTerms = [context.lastSearchQuery];
+          console.log('🔄 Following up on search:', context.lastSearchQuery);
+        }
+      }
+
+      // SEARCH: Actually search the inbox
+      if (intent.type === 'search' && graphService.isSignedIn) {
+        const searchQueries = agentService.extractSearchQuery(text, intent.entities);
+        console.log('🔍 Search queries extracted:', searchQueries);
+
+        if (searchQueries.length > 0) {
+          addMessage({
+            id: uuidv4(),
+            role: 'assistant',
+            content: `🔍 Searching your inbox for: **${searchQueries.join(', ')}**...`,
+            timestamp: new Date(),
+          });
+
+          // Actually search the inbox!
+          let allResults: any[] = [];
+          for (const query of searchQueries) {
+            const results = await graphService.searchEmails(query, 25);
+            allResults = [...allResults, ...results];
+          }
+          
+          // Deduplicate by email ID
+          const uniqueResults = Array.from(
+            new Map(allResults.map(r => [r.id, r])).values()
+          );
+          
+          // Store results in agent context
+          agentService.setSearchResults(uniqueResults, searchQueries.join(', '));
+          agentService.setPendingAction(null);
+
+          if (uniqueResults.length === 0) {
+            const responseContent = `📭 **No emails found** matching "${searchQueries.join(', ')}"\n\n` +
+              `I searched your inbox but didn't find any matching emails. Try:\n` +
+              `• Different search terms\n` +
+              `• Company name instead of product\n` +
+              `• Sender's name or email address`;
+            
             addMessage({
               id: uuidv4(),
               role: 'assistant',
-              content: '🔍 Scanning your inbox...',
+              content: responseContent,
               timestamp: new Date(),
             });
             
-            const inboxSummary = await graphService.getInboxSummary();
+            agentService.addToHistory({
+              role: 'assistant',
+              content: responseContent,
+              timestamp: new Date(),
+              metadata: { searchQuery: searchQueries.join(', '), searchResults: [] }
+            });
+          } else {
+            // Format results for display
+            const emailList = uniqueResults.slice(0, 10).map((e: any, i: number) => 
+              `${i + 1}. **${e.sender}** <${e.senderEmail}>\n   📧 ${e.subject}\n   📅 ${new Date(e.receivedDateTime).toLocaleDateString()}`
+            ).join('\n\n');
             
-            if (inboxSummary.isRealData) {
-              const topSendersList = inboxSummary.topSenders.slice(0, 5)
-                .map(s => `• ${s.name} (${s.count} emails)`)
-                .join('\n');
+            // Extract unique senders for compose help
+            const uniqueSenders = Array.from(
+              new Map(uniqueResults.map((r: any) => [r.senderEmail, { name: r.sender, email: r.senderEmail }])).values()
+            );
+            
+            const responseContent = `📬 **Found ${uniqueResults.length} emails** matching "${searchQueries.join(', ')}"\n\n` +
+              `${emailList}\n\n` +
+              `---\n` +
+              `**What would you like to do?**\n` +
+              `• "Summarize these emails"\n` +
+              `• "Draft an email to [sender name]"\n` +
+              `• "What action items are in these emails?"`;
+            
+            addMessage({
+              id: uuidv4(),
+              role: 'assistant',
+              content: responseContent,
+              timestamp: new Date(),
+            });
+            
+            agentService.addToHistory({
+              role: 'assistant',
+              content: responseContent,
+              timestamp: new Date(),
+              metadata: { searchQuery: searchQueries.join(', '), searchResults: uniqueResults }
+            });
+          }
+          
+          setIsProcessing(false);
+          return;
+        }
+      }
+
+      // COMPOSE: Help compose emails using inbox context
+      if (intent.type === 'compose') {
+        const context = agentService.getContext();
+        
+        // Check if we have contacts from previous searches
+        if (context.lastSearchResults.length > 0) {
+          const uniqueSenders = Array.from(
+            new Map(context.lastSearchResults.map((r: any) => [r.senderEmail, { name: r.sender, email: r.senderEmail }])).values()
+          );
+          
+          // Build AI prompt with context
+          const contextStr = agentService.buildAIContext(emailContext);
+          const enhancedPrompt = `USER REQUEST: ${text}
+
+${contextStr}
+
+The user wants to compose an email. Based on the conversation context and search results above:
+1. If they mentioned specific contacts/companies, use those email addresses
+2. If they want pricing information, draft a professional pricing request
+3. Include all relevant contacts from the search results
+4. Be specific and professional
+
+AVAILABLE CONTACTS FROM THEIR INBOX:
+${uniqueSenders.slice(0, 10).map((s: any) => `- ${s.name}: ${s.email}`).join('\n')}
+
+Draft the email(s) they requested. For each email, provide:
+- TO: [email address]
+- SUBJECT: [subject line]
+- BODY: [full email body]`;
+
+          const response = await aiService.chat({
+            prompt: enhancedPrompt,
+            context: { currentEmail: emailContext || undefined },
+          });
+
+          addMessage({
+            id: uuidv4(),
+            role: 'assistant',
+            content: response.content,
+            timestamp: new Date(),
+          });
+          
+          agentService.addToHistory({
+            role: 'assistant',
+            content: response.content,
+            timestamp: new Date(),
+          });
+          
+          setIsProcessing(false);
+          return;
+        }
+        
+        // No context - need to search first
+        if (graphService.isSignedIn) {
+          // Try to extract what they want to compose about
+          const searchTerms = agentService.extractSearchQuery(text, intent.entities);
+          
+          if (searchTerms.length > 0) {
+            addMessage({
+              id: uuidv4(),
+              role: 'assistant',
+              content: `🔍 Let me find relevant contacts in your inbox first...`,
+              timestamp: new Date(),
+            });
+            
+            let allResults: any[] = [];
+            for (const query of searchTerms) {
+              const results = await graphService.searchEmails(query, 20);
+              allResults = [...allResults, ...results];
+            }
+            
+            if (allResults.length > 0) {
+              agentService.setSearchResults(allResults, searchTerms.join(', '));
               
-              const recentEmailsList = inboxSummary.recentEmails.slice(0, 5)
-                .map(e => `• ${e.isRead ? '📖' : '📬'} **${e.subject}** - from ${e.sender}`)
-                .join('\n');
+              const uniqueSenders = Array.from(
+                new Map(allResults.map((r: any) => [r.senderEmail, { name: r.sender, email: r.senderEmail }])).values()
+              );
+              
+              const senderList = uniqueSenders.slice(0, 10).map((s: any, i: number) => 
+                `${i + 1}. **${s.name}** - ${s.email}`
+              ).join('\n');
+              
+              const responseContent = `📬 **Found ${uniqueSenders.length} contacts** related to "${searchTerms.join(', ')}":\n\n` +
+                `${senderList}\n\n` +
+                `Would you like me to draft emails to all of them, or specific ones?`;
               
               addMessage({
                 id: uuidv4(),
                 role: 'assistant',
-                content: `📊 **Inbox Summary**\n\n` +
-                  `📬 **${inboxSummary.unreadCount}** unread emails\n` +
-                  `📧 **${inboxSummary.totalEmails}** total (last 100)\n\n` +
-                  `**Top Senders:**\n${topSendersList}\n\n` +
-                  `**Recent Emails:**\n${recentEmailsList}\n\n` +
-                  `Would you like me to summarize specific emails or filter by sender?`,
+                content: responseContent,
                 timestamp: new Date(),
               });
+              
+              agentService.addToHistory({
+                role: 'assistant',
+                content: responseContent,
+                timestamp: new Date(),
+                metadata: { searchResults: allResults }
+              });
+              
+              agentService.setPendingAction('compose');
               setIsProcessing(false);
               return;
             }
-          } catch (error) {
-            console.error('Graph API error:', error);
           }
         }
+      }
+
+      // LIST/REVIEW: Show inbox summary
+      if (intent.type === 'list' && graphService.isSignedIn) {
+        addMessage({
+          id: uuidv4(),
+          role: 'assistant',
+          content: '🔍 Scanning your inbox...',
+          timestamp: new Date(),
+        });
         
-        // Fallback to current email context
-        if (emailContext) {
+        const inboxSummary = await graphService.getInboxSummary();
+        
+        if (inboxSummary.isRealData) {
+          const topSendersList = inboxSummary.topSenders.slice(0, 5)
+            .map(s => `• ${s.name} (${s.count} emails)`)
+            .join('\n');
+          
+          const recentEmailsList = inboxSummary.recentEmails.slice(0, 5)
+            .map(e => `• ${e.isRead ? '📖' : '📬'} **${e.subject}** - from ${e.sender}`)
+            .join('\n');
+          
+          const responseContent = `📊 **Inbox Summary**\n\n` +
+            `📬 **${inboxSummary.unreadCount}** unread emails\n` +
+            `📧 **${inboxSummary.totalEmails}** total (last 100)\n\n` +
+            `**Top Senders:**\n${topSendersList}\n\n` +
+            `**Recent Emails:**\n${recentEmailsList}\n\n` +
+            `What would you like to do? You can:\n` +
+            `• Search for specific emails\n` +
+            `• Summarize emails from a sender\n` +
+            `• Find action items`;
+          
           addMessage({
             id: uuidv4(),
             role: 'assistant',
-            content: `📧 **I can help with your current email!**\n\n*Sign in with Microsoft (button above) for full inbox access.*\n\n**Current Email:**\n- **From:** ${emailContext.sender}\n- **Subject:** ${emailContext.subject || '(no subject)'}\n- **Status:** ${emailContext.isRead ? 'Read' : '📬 Unread'}\n\n**What would you like me to do?**\n• "Summarize this email"\n• "Draft a reply"\n• "Extract action items"`,
+            content: responseContent,
             timestamp: new Date(),
           });
-        } else {
-          addMessage({
-            id: uuidv4(),
+          
+          agentService.addToHistory({
             role: 'assistant',
-            content: `📭 **Full Inbox Access**\n\nTo scan your entire inbox:\n1. Click **"Sign in for full inbox access"** above\n2. Approve the permissions\n3. Ask me to "review my inbox" again\n\n*Or select an email to work with it directly.*`,
+            content: responseContent,
             timestamp: new Date(),
           });
+          
+          setIsProcessing(false);
+          return;
         }
-        setIsProcessing(false);
-        return;
       }
 
-      // Handle mark as read request
-      if (wantsMarkAsRead) {
-        if (emailContext) {
-          addMessage({
-            id: uuidv4(),
-            role: 'assistant',
-            content: `📧 **Current email:** "${emailContext.subject}"\n\n${emailContext.isRead ? '✅ This email is already marked as read.' : '📬 This email is unread.'}\n\n**To mark as read:** Simply click on the email in Outlook, or right-click and select "Mark as Read".\n\n**To mark ALL as read:** Right-click on your Inbox folder → "Mark all as read"`,
-            timestamp: new Date(),
-          });
-        } else {
-          addMessage({
-            id: uuidv4(),
-            role: 'assistant',
-            content: `📭 **No email selected**\n\nTo mark emails as read:\n1. **Single email:** Click on it or right-click → "Mark as Read"\n2. **All emails:** Right-click on Inbox folder → "Mark all as read"`,
-            timestamp: new Date(),
-          });
-        }
-        setIsProcessing(false);
-        return;
-      }
+      // ========================================
+      // FALLBACK: Send to AI with full context
+      // ========================================
       
-      // Build enhanced context for AI - always include current email if available
-      let enhancedPrompt = text;
+      // Build comprehensive context for AI
+      const agentContext = agentService.buildAIContext(emailContext);
+      const hasSearchResults = agentService.getContext().lastSearchResults.length > 0;
       
-      if (emailContext) {
-        // We have current email context - include it for AI to work with
-        enhancedPrompt = `USER REQUEST: ${text}
+      const systemInstructions = hasSearchResults 
+        ? `You have access to the user's inbox search results. Use them to answer questions.
+If they ask about emails, contacts, or want to compose - USE THE SEARCH RESULTS PROVIDED.
+Don't ask them to search - YOU have the results already.
+Be proactive and helpful.`
+        : `You are a helpful email assistant. If the user asks about finding or searching emails, and you don't have search results, tell them you'll search for it and then ACTUALLY describe what you found (the system will search automatically).`;
 
-CURRENT EMAIL CONTEXT:
+      const enhancedPrompt = `${systemInstructions}
+
+USER REQUEST: ${text}
+
+${agentContext}
+
+${emailContext ? `
+CURRENTLY SELECTED EMAIL:
 - From: ${emailContext.sender} (${emailContext.senderEmail || 'no email'})
 - Subject: ${emailContext.subject}
-- Received: ${emailContext.receivedDateTime}
-- Status: ${emailContext.isRead ? 'Read' : 'Unread'}
-- Has Attachments: ${emailContext.hasAttachments ? 'Yes' : 'No'}
-- Content: ${emailContext.preview || 'No content preview available'}
+- Preview: ${emailContext.preview || 'No preview'}
+` : ''}
 
-Please help the user with their request. If they want a summary, provide a clear summary. If they want action items, extract them. If they want to reply, draft a professional response.`;
-      }
-      
-      // Send to AI for analysis/response
+Respond helpfully. If you have search results above, USE THEM to answer. Don't ask the user to search - you already have the data.`;
+
       const response = await aiService.chat({
         prompt: enhancedPrompt,
-        context: {
-          currentEmail: emailContext || undefined,
-          upcomingEvents: calendarContext,
-        },
+        context: { currentEmail: emailContext || undefined },
       });
 
-      // Add assistant response
       addMessage({
         id: uuidv4(),
         role: 'assistant',
         content: response.content,
         timestamp: new Date(),
-        metadata: {
-          action: response.suggestedActions?.[0]?.type,
-        },
       });
-
-      // Handle any suggested actions
-      if (response.extractedTasks && response.extractedTasks.length > 0) {
-        // Could auto-create tasks here based on user settings
-      }
+      
+      agentService.addToHistory({
+        role: 'assistant',
+        content: response.content,
+        timestamp: new Date(),
+      });
 
     } catch (error) {
       console.error('ChatPanel error:', error);

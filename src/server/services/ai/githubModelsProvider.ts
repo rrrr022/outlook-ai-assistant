@@ -87,7 +87,7 @@ IMPORTANT: Answer the user's actual question. Do not provide generic email templ
         };
       }
 
-      const data = await response.json();
+      const data: any = await response.json();
       const content = data.choices?.[0]?.message?.content || '';
       console.log(`✅ Got AI response, length: ${content.length} chars`);
 
