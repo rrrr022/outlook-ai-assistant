@@ -26,7 +26,7 @@
     <Host Name="Mailbox"/>
   </Hosts>
   
-  <!-- Increased to 1.13 for SupportsNoItemContext (persistent pinning) -->
+  <!-- MinVersion 1.13 for SupportsNoItemContext (persistent pinning) -->
   <Requirements>
     <Sets>
       <Set Name="Mailbox" MinVersion="1.13"/>
@@ -171,26 +171,6 @@
               </OfficeTab>
             </ExtensionPoint>
           </DesktopFormFactor>
-          
-          <!-- Mobile Support -->
-          <MobileFormFactor>
-            <ExtensionPoint xsi:type="MobileMessageReadCommandSurface">
-              <Group id="mobileMsgReadGroup">
-                <Label resid="GroupLabel"/>
-                <Control xsi:type="MobileButton" id="mobileMsgReadBtn">
-                  <Label resid="TaskpaneButton.Label"/>
-                  <Icon>
-                    <bt:Image size="25" resid="Icon.32x32"/>
-                    <bt:Image size="32" resid="Icon.32x32"/>
-                    <bt:Image size="48" resid="Icon.80x80"/>
-                  </Icon>
-                  <Action xsi:type="ShowTaskpane">
-                    <SourceLocation resid="Taskpane.Url"/>
-                  </Action>
-                </Control>
-              </Group>
-            </ExtensionPoint>
-          </MobileFormFactor>
         </Host>
       </Hosts>
       

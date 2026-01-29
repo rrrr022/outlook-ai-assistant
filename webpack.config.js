@@ -78,6 +78,11 @@ module.exports = {
           noErrorOnMissing: true,
         },
         {
+          from: 'manifest.xml',
+          to: 'manifest.xml',
+          noErrorOnMissing: true,
+        },
+        {
           from: 'manifest.azure.xml',
           to: 'manifest.azure.xml',
           noErrorOnMissing: true,

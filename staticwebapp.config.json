@@ -1,18 +1,26 @@
 {
   "navigationFallback": {
     "rewrite": "/taskpane.html",
-    "exclude": ["/assets/*", "/*.js", "/*.css", "/*.png", "/*.ico", "/api/*", "/*.xml"]
+    "exclude": ["/assets/*", "/*.js", "/*.css", "/*.png", "/*.ico", "/api/*", "/*.xml", "/*.json"]
   },
   "routes": [
     {
-      "route": "/taskpane.html",
-      "rewrite": "/taskpane.html"
+      "route": "/manifest.xml",
+      "headers": {
+        "Content-Type": "application/xml",
+        "Cache-Control": "no-cache"
+      }
     },
     {
       "route": "/manifest.azure.xml",
       "headers": {
-        "Content-Type": "application/xml"
+        "Content-Type": "application/xml",
+        "Cache-Control": "no-cache"
       }
+    },
+    {
+      "route": "/taskpane.html",
+      "rewrite": "/taskpane.html"
     },
     {
       "route": "/assets/*",
@@ -25,11 +33,6 @@
       "allowedRoles": ["anonymous"]
     }
   ],
-  "responseOverrides": {
-    "404": {
-      "rewrite": "/taskpane.html"
-    }
-  },
   "globalHeaders": {
     "X-Content-Type-Options": "nosniff"
   },
