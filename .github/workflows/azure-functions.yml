@@ -39,10 +39,29 @@ jobs:
         working-directory: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
         run: npm run build
 
+      - name: Verify build output
+        working-directory: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+        run: |
+          echo "=== Build output ==="
+          ls -la dist/
+          ls -la dist/functions/
+          echo "=== Package.json main entry ==="
+          cat package.json | grep '"main"'
+
+      - name: Install production dependencies
+        working-directory: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+        run: npm ci --only=production
+
       - name: Login to Azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set Function App Settings for v4 model
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            az functionapp config appsettings set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} --settings AzureWebJobsFeatureFlags=EnableWorkerIndexing FUNCTIONS_WORKER_RUNTIME=node WEBSITE_NODE_DEFAULT_VERSION=~20
 
       - name: Deploy to Azure Functions
         uses: Azure/functions-action@v1

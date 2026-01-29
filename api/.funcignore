@@ -1,7 +1,8 @@
 src
 *.ts
-node_modules
 local.settings.json
 *.log
 .env
 tsconfig.json
+.git*
+.vscode
