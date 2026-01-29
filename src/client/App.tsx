@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import AgentChatPanel from './components/AgentChatPanel';
+import ChatPanel from './components/ChatPanel';
 import EmailPanel from './components/EmailPanel';
 import CalendarPanel from './components/CalendarPanel';
 import TasksPanel from './components/TasksPanel';
@@ -56,7 +56,7 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'chat':
-        return <AgentChatPanel />;
+        return <ChatPanel />;
       case 'email':
         return <EmailPanel />;
       case 'calendar':
@@ -68,7 +68,7 @@ const App: React.FC = () => {
       case 'settings':
         return <SettingsPanel />;
       default:
-        return <AgentChatPanel />;
+        return <ChatPanel />;
     }
   };
 

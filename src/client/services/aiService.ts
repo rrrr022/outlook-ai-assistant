@@ -497,13 +497,21 @@ Most importantly: BE PROACTIVE AND TAKE ACTION rather than asking the user to do
    * Fallback response for when API is unavailable
    */
   private getFallbackResponse(prompt: string, error?: any): AIResponse {
-    const lowercasePrompt = prompt.toLowerCase();
     const errorMsg = error?.message || 'Unknown error';
+
+    // Always show the actual error so user knows what's wrong
+    console.error('🚨 AI Fallback triggered:', { error: errorMsg, promptLength: prompt.length });
 
     // If it's an API key error, return helpful message
     if (errorMsg.includes('401') || errorMsg.includes('unauthorized') || errorMsg.includes('invalid')) {
       return {
         content: `⚠️ **API Key Error**\n\nYour API key appears to be invalid or expired.\n\nPlease check:\n1. The key is entered correctly in Settings → API Keys\n2. The key hasn't expired\n3. The key has the required permissions\n\n_Error: ${errorMsg}_`,
+      };
+    }
+
+    if (errorMsg.includes('400')) {
+      return {
+        content: `⚠️ **Bad Request Error**\n\nThe AI model couldn't process the request.\n\nThis could mean:\n1. The model name is incorrect\n2. The request format is invalid\n\n_Error: ${errorMsg}_\n\nTry going to Settings → Config and selecting a different model.`,
       };
     }
 
@@ -513,67 +521,15 @@ Most importantly: BE PROACTIVE AND TAKE ACTION rather than asking the user to do
       };
     }
 
-    // Log what's happening for debugging
-    console.log('⚠️ AI Fallback triggered:', { error: errorMsg, promptStart: lowercasePrompt.substring(0, 100) });
-
-    // Only use summarize fallback for actual email summarization, not inbox searches
-    if (lowercasePrompt.includes('summarize this email') || lowercasePrompt.includes('summarize the email')) {
+    if (errorMsg.includes('Failed to fetch') || errorMsg.includes('network') || errorMsg.includes('CORS')) {
       return {
-        content: 'This email discusses project updates and requests a meeting to review progress. Key points include: deadline adjustments, resource allocation, and next steps for the team.',
+        content: `⚠️ **Network Error**\n\nCouldn't connect to the AI service.\n\nPossible causes:\n1. No internet connection\n2. The AI service is down\n3. CORS blocking (try a different provider)\n\n_Error: ${errorMsg}_`,
       };
     }
 
-    if (lowercasePrompt.includes('reply') || lowercasePrompt.includes('draft a reply')) {
-      return {
-        content: `Thank you for your email. I appreciate you reaching out about this matter.
-
-I've reviewed the information you provided and would like to schedule a time to discuss this further. Would you be available for a brief call this week?
-
-Please let me know your availability and I'll send a calendar invite.
-
-Best regards`,
-      };
-    }
-
-    if (lowercasePrompt.includes('task') || lowercasePrompt.includes('action')) {
-      return {
-        content: `Based on the email, here are the action items:
-- Review the attached document by Friday
-- Schedule a follow-up meeting
-- Prepare status update for the team
-- Send updated timeline to stakeholders`,
-        extractedTasks: [
-          { title: 'Review attached document', priority: 'high' },
-          { title: 'Schedule follow-up meeting', priority: 'normal' },
-          { title: 'Prepare status update', priority: 'normal' },
-        ],
-      };
-    }
-
-    if (lowercasePrompt.includes('plan') || lowercasePrompt.includes('day')) {
-      return {
-        content: `Here's your optimized day plan:
-
-🌅 Morning (9:00 - 12:00)
-- Start with your Team Standup at 9:00 AM
-- Use the focus time until noon to tackle high-priority tasks
-- Review and respond to urgent emails
-
-🌤️ Afternoon (12:00 - 17:00)  
-- Project Review meeting at 2:00 PM
-- 1:1 with Manager at 4:00 PM
-- Use remaining time for task completion and planning
-
-💡 Recommendations:
-- Block 30 mins for email processing
-- Take a short break between meetings
-- Prepare talking points before your 1:1`,
-      };
-    }
-
-    // Default fallback with error info
+    // Default fallback with clear error info
     return {
-      content: `⚠️ **AI Service Error**\n\nI couldn't process your request. This usually means:\n\n1. **No API key configured** - Go to Settings ⚙️ and add your AI provider key\n2. **API error** - The AI service returned an error\n\n_Technical details: ${errorMsg}_\n\nYour search results are still available above. You can try again or configure an AI provider in settings.`,
+      content: `⚠️ **AI Service Error**\n\nI couldn't process your request.\n\n**Error:** ${errorMsg}\n\n**To fix:**\n1. Go to **Settings** ⚙️ (Config tab)\n2. Make sure you have an API key entered\n3. Test the connection\n\nIf using **Anthropic/Claude**, make sure the model name is correct (e.g., "claude-3-5-sonnet-latest")`,
     };
   }
 }
