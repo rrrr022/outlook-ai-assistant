@@ -286,9 +286,46 @@ const ChatPanel: React.FC = () => {
       const hasSearchTarget = /activated carbon|patent|distributor|supplier|vendor|pricing|quote/i.test(lowerText);
       const needsSearch = hasSearchTarget || /search|find|look for|any.*from|emails? (from|about)|do i have/i.test(lowerText);
       const needsInboxSummary = /review.*inbox|inbox.*summary|show.*inbox|scan.*inbox/i.test(lowerText) && !hasSearchTarget;
+      const needsUnreadCount = /unread|how many.*emails?|count.*emails?/i.test(lowerText);
       
       let searchResults: any[] = [];
       let inboxSummary: any = null;
+      
+      // Auto-fetch unread emails if asking about unread count
+      if (needsUnreadCount && graphService.isSignedIn) {
+        addMessage({
+          id: uuidv4(),
+          role: 'assistant',
+          content: `📊 Checking your unread emails...`,
+          timestamp: new Date(),
+        });
+        
+        try {
+          // Get unread emails using the dedicated method
+          const unreadEmails = await graphService.getUnreadEmails(100);
+          console.log(`📬 Found ${unreadEmails.length} unread emails`);
+          
+          // Set context for AI
+          autonomousAgent.setSearchResults(unreadEmails);
+          searchResults = unreadEmails;
+          
+          // Provide immediate answer
+          const unreadSummary = unreadEmails.slice(0, 5).map((e: any, i: number) => 
+            `${i + 1}. **${e.sender}**: ${e.subject}`
+          ).join('\n');
+          
+          addMessage({
+            id: uuidv4(),
+            role: 'assistant',
+            content: `📬 **You have ${unreadEmails.length} unread emails**\n\n**Most recent:**\n${unreadSummary}${unreadEmails.length > 5 ? `\n\n...and ${unreadEmails.length - 5} more` : ''}`,
+            timestamp: new Date(),
+          });
+          
+          // Still continue to AI for additional analysis
+        } catch (error) {
+          console.error('Error fetching unread emails:', error);
+        }
+      }
       
       // Auto-execute search if needed (this takes priority)
       if (needsSearch && graphService.isSignedIn) {
