@@ -41,6 +41,17 @@ const ChatPanel: React.FC = () => {
   const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { messages, addMessage, currentEmail, tasks } = useAppStore();
+  const showFrameworkMessages = false;
+
+  const addFrameworkMessage = (content: string) => {
+    if (!showFrameworkMessages) return;
+    addMessage({
+      id: uuidv4(),
+      role: 'assistant',
+      content,
+      timestamp: new Date(),
+    });
+  };
 
   // Smart suggestions based on context
   const suggestions = [
@@ -63,6 +74,7 @@ const ChatPanel: React.FC = () => {
   useEffect(() => {
     const checkSignIn = async () => {
       const { graphService } = await loadGraphService();
+      await graphService.initializeAuth();
       setIsSignedIn(graphService.isSignedIn);
       if (graphService.isSignedIn) {
         const userInfo = graphService.getUserInfo();
@@ -81,20 +93,14 @@ const ChatPanel: React.FC = () => {
         setIsSignedIn(true);
         const userInfo = graphService.getUserInfo();
         setUserName(userInfo?.name || null);
-        addMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: `✅ **Signed in successfully!**\n\nWelcome ${userInfo?.name || 'there'}! You now have full inbox access.\n\nTry:\n• "Review my entire inbox"\n• "Show me my unread emails"\n• "Search emails from [person]"`,
-          timestamp: new Date(),
-        });
+        addFrameworkMessage(
+          `✅ **Signed in successfully!**\n\nWelcome ${userInfo?.name || 'there'}! You now have full inbox access.\n\nTry:\n• "Review my entire inbox"\n• "Show me my unread emails"\n• "Search emails from [person]"`
+        );
       }
     } catch (error: any) {
-      addMessage({
-        id: uuidv4(),
-        role: 'assistant',
-        content: `❌ **Sign-in failed**\n\n${error.message || 'Please try again.'}\n\nMake sure you've approved the permissions in the popup.`,
-        timestamp: new Date(),
-      });
+      addFrameworkMessage(
+        `❌ **Sign-in failed**\n\n${error.message || 'Please try again.'}\n\nMake sure you've approved the permissions in the popup.`
+      );
     }
   };
 
@@ -104,12 +110,7 @@ const ChatPanel: React.FC = () => {
     await graphService.signOut();
     setIsSignedIn(false);
     setUserName(null);
-    addMessage({
-      id: uuidv4(),
-      role: 'assistant',
-      content: '👋 Signed out. You can still work with the currently selected email.',
-      timestamp: new Date(),
-    });
+    addFrameworkMessage('👋 Signed out. You can still work with the currently selected email.');
   };
 
   const quickActions = [
@@ -149,24 +150,16 @@ const ChatPanel: React.FC = () => {
         break;
       case 'compose':
         prompt = 'Help me compose a new email. What would you like to write about?';
-        addMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: '✉️ I can help you compose an email! Just tell me:\n\n• **Who** do you want to email?\n• **What** is it about?\n• **What tone** (formal, casual, friendly)?\n\nOr just describe what you need and I\'ll draft something for you.',
-          timestamp: new Date(),
-        });
+        addFrameworkMessage(
+          '✉️ I can help you compose an email! Just tell me:\n\n• **Who** do you want to email?\n• **What** is it about?\n• **What tone** (formal, casual, friendly)?\n\nOr just describe what you need and I\'ll draft something for you.'
+        );
         return;
       case 'review-inbox':
         prompt = 'Review my entire inbox and give me a summary of important emails, unread messages, and action items';
         break;
       case 'search-emails':
         prompt = 'What would you like to search for in your inbox?';
-        addMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: prompt,
-          timestamp: new Date(),
-        });
+        addFrameworkMessage(prompt);
         return;
     }
     
@@ -185,12 +178,7 @@ const ChatPanel: React.FC = () => {
     setPendingApprovals(prev => prev.filter(a => a.id !== approvalId));
 
     if (!approved) {
-      addMessage({
-        id: uuidv4(),
-        role: 'assistant',
-        content: `❌ Cancelled: ${approval.description}`,
-        timestamp: new Date(),
-      });
+      addFrameworkMessage(`❌ Cancelled: ${approval.description}`);
       return;
     }
 
@@ -208,43 +196,20 @@ const ChatPanel: React.FC = () => {
         );
         
         if (success) {
-          addMessage({
-            id: uuidv4(),
-            role: 'assistant',
-            content: `✅ **Email sent successfully!**\n\n📤 To: ${approval.details.to}\n📋 Subject: ${approval.details.subject}`,
-            timestamp: new Date(),
-          });
+          addFrameworkMessage(
+            `✅ **Email sent successfully!**\n\n📤 To: ${approval.details.to}\n📋 Subject: ${approval.details.subject}`
+          );
         } else {
-          addMessage({
-            id: uuidv4(),
-            role: 'assistant',
-            content: `❌ Failed to send email. Please try again.`,
-            timestamp: new Date(),
-          });
+          addFrameworkMessage('❌ Failed to send email. Please try again.');
         }
       } else if (approval.type === 'create_calendar_event') {
-        addMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: `✅ **Calendar event created!**\n\n📅 ${approval.details.title}`,
-          timestamp: new Date(),
-        });
+        addFrameworkMessage(`✅ **Calendar event created!**\n\n📅 ${approval.details.title}`);
       } else if (approval.type === 'delete_email') {
-        addMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: `✅ **Email deleted.**`,
-          timestamp: new Date(),
-        });
+        addFrameworkMessage('✅ **Email deleted.**');
       }
     } catch (error) {
       console.error('Error executing approved action:', error);
-      addMessage({
-        id: uuidv4(),
-        role: 'assistant',
-        content: `❌ Error: Could not complete the action. ${error}`,
-        timestamp: new Date(),
-      });
+      addFrameworkMessage(`❌ Error: Could not complete the action. ${error}`);
     } finally {
       setIsProcessing(false);
     }
@@ -296,12 +261,7 @@ const ChatPanel: React.FC = () => {
       
       // Auto-fetch unread emails if asking about unread count
       if (needsUnreadCount && graphService.isSignedIn) {
-        addMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: `📊 Checking your unread emails...`,
-          timestamp: new Date(),
-        });
+        addFrameworkMessage('📊 Checking your unread emails...');
         
         try {
           // Get unread emails using the dedicated method
@@ -317,12 +277,9 @@ const ChatPanel: React.FC = () => {
             `${i + 1}. **${e.sender}**: ${e.subject}`
           ).join('\n');
           
-          addMessage({
-            id: uuidv4(),
-            role: 'assistant',
-            content: `📬 **You have ${unreadEmails.length} unread emails**\n\n**Most recent:**\n${unreadSummary}${unreadEmails.length > 5 ? `\n\n...and ${unreadEmails.length - 5} more` : ''}`,
-            timestamp: new Date(),
-          });
+          addFrameworkMessage(
+            `📬 **You have ${unreadEmails.length} unread emails**\n\n**Most recent:**\n${unreadSummary}${unreadEmails.length > 5 ? `\n\n...and ${unreadEmails.length - 5} more` : ''}`
+          );
           
           // Still continue to AI for additional analysis
         } catch (error) {
@@ -337,16 +294,11 @@ const ChatPanel: React.FC = () => {
         console.log('🔍 Extracted search terms:', searchTerms);
         
         if (searchTerms.length > 0) {
-          addMessage({
-            id: uuidv4(),
-            role: 'assistant',
-            content: `🔍 Searching inbox for: **${searchTerms.join(', ')}**...`,
-            timestamp: new Date(),
-          });
+          addFrameworkMessage(`🔍 Searching inbox for: **${searchTerms.join(', ')}**...`);
           
           for (const term of searchTerms) {
             console.log(`🔍 Searching for: "${term}"`);
-            const results = await graphService.searchEmails(term, 30);
+            const results = await graphService.searchEmails(term, 500);
             console.log(`📬 Found ${results.length} results for "${term}"`);
             searchResults = [...searchResults, ...results];
           }
@@ -365,31 +317,20 @@ const ChatPanel: React.FC = () => {
               `${i + 1}. **${e.sender}** <${e.senderEmail}>\n   📧 ${e.subject}\n   📅 ${new Date(e.receivedDateTime).toLocaleDateString()}`
             ).join('\n\n');
             
-            addMessage({
-              id: uuidv4(),
-              role: 'assistant',
-              content: `📬 **Found ${searchResults.length} emails** (${uniqueSenders.length} unique senders)\n\n${resultsSummary}`,
-              timestamp: new Date(),
-            });
+            addFrameworkMessage(
+              `📬 **Found ${searchResults.length} emails** (${uniqueSenders.length} unique senders)\n\n${resultsSummary}`
+            );
           } else {
-            addMessage({
-              id: uuidv4(),
-              role: 'assistant',
-              content: `📭 **No emails found** matching "${searchTerms.join(', ')}". Try different search terms.`,
-              timestamp: new Date(),
-            });
+            addFrameworkMessage(
+              `📭 **No emails found** matching "${searchTerms.join(', ')}". Try different search terms.`
+            );
           }
         }
       }
       
       // Auto-execute inbox summary if needed (only if not searching)
       else if (needsInboxSummary && graphService.isSignedIn) {
-        addMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: `🔍 Scanning your inbox...`,
-          timestamp: new Date(),
-        });
+        addFrameworkMessage('🔍 Scanning your inbox...');
         inboxSummary = await graphService.getInboxSummary();
         autonomousAgent.setSearchResults(inboxSummary.recentEmails);
       }
@@ -482,23 +423,26 @@ const ChatPanel: React.FC = () => {
         'mark_all_unread_as_read', 'archive_email', 'archive', 'move_email', 'move',
         'set_categories', 'set_importance',
         
-        // Calendar responses (user-initiated)
-        'accept_meeting', 'decline_meeting', 'tentative_meeting',
+        // Email management (destructive but internal)
+        'delete_email', 'delete', 'delete_all_from_sender',
         
-        // Task management (low-risk)
-        'create_task', 'task', 'todo', 'complete_task', 'update_task',
+        // Task management (internal)
+        'create_task', 'task', 'todo', 'complete_task', 'update_task', 'delete_task',
         
         // Draft creation (doesn't send)
         'create_draft', 'draft',
         
-        // Folder management (low-risk)
-        'create_folder', 'rename_folder',
+        // Folder management (internal)
+        'create_folder', 'rename_folder', 'delete_folder',
         
-        // Contact management (low-risk)
-        'create_contact', 'update_contact',
+        // Contact management (internal)
+        'create_contact', 'update_contact', 'delete_contact',
         
-        // Rules (low-risk)
-        'create_mail_rule', 'set_auto_reply',
+        // Rules (internal)
+        'create_mail_rule', 'delete_mail_rule',
+        
+        // Calendar management (internal unless attendees present)
+        'create_event', 'schedule', 'meeting', 'create_recurring_event', 'update_event', 'delete_event',
         
         // Analytics and summaries (read-only)
         'get_email_stats', 'get_top_senders', 'summarize_email', 'summarize_thread', 
@@ -508,18 +452,34 @@ const ChatPanel: React.FC = () => {
         'archive_all_from_sender', 'archive_older_than', 'move_emails_from_sender',
       ];
       
-      // Actions that need user approval before executing (destructive or sends messages)
+      // Actions that always need user approval before executing (outbound)
       const needsApprovalActions = [
         // Sending messages
         'send_email', 'send', 'reply_email', 'reply', 'reply_all', 'forward_email', 'forward', 'send_draft',
-        
-        // Deleting things
-        'delete_email', 'delete', 'delete_task', 'delete_contact', 'delete_folder', 'delete_mail_rule',
-        'delete_all_from_sender',  // Bulk delete - needs approval
-        
-        // Calendar events (could notify others)
-        'create_event', 'schedule', 'meeting', 'create_recurring_event', 'update_event', 'delete_event',
+
+        // Meeting responses (notify others)
+        'accept_meeting', 'decline_meeting', 'tentative_meeting',
+
+        // Auto-reply (sends out of office responses)
+        'set_auto_reply',
       ];
+
+      const requiresApproval = (action: { type: string; params: Record<string, any> }) => {
+        if (needsApprovalActions.includes(action.type)) return true;
+
+        // Calendar actions only require approval if attendees are included (outbound invite/updates)
+        const isCalendarAction = [
+          'create_event', 'schedule', 'meeting',
+          'create_recurring_event', 'update_event', 'delete_event',
+        ].includes(action.type);
+
+        if (isCalendarAction) {
+          const attendees = action.params?.attendees;
+          return Array.isArray(attendees) ? attendees.length > 0 : !!attendees;
+        }
+
+        return false;
+      };
       
       // Collect action results for context feedback
       const actionResults: Array<{ action: string; success: boolean; message: string; data?: any }> = [];
@@ -579,25 +539,17 @@ const ChatPanel: React.FC = () => {
             });
             
             // Always show a message for successful actions
-            addMessage({
-              id: uuidv4(),
-              role: 'assistant',
-              content: resultSummary 
+            addFrameworkMessage(
+              resultSummary
                 ? `📊 **${result.message}**\n\n${resultSummary}`
-                : `✅ **${result.message}**`,
-              timestamp: new Date(),
-            });
+                : `✅ **${result.message}**`
+            );
           } else {
             // Show failed actions
             console.warn('⚠️ Action failed:', action.type, result.message);
-            addMessage({
-              id: uuidv4(),
-              role: 'assistant',
-              content: `❌ **Action failed:** ${result.message}`,
-              timestamp: new Date(),
-            });
+            addFrameworkMessage(`❌ **Action failed:** ${result.message}`);
           }
-        } else if (needsApprovalActions.includes(action.type)) {
+        } else if (requiresApproval(action)) {
           // Queue for approval
           const approval = {
             id: uuidv4(),
@@ -608,12 +560,9 @@ const ChatPanel: React.FC = () => {
           setPendingApprovals(prev => [...prev, approval]);
           
           // Show that approval is pending
-          addMessage({
-            id: uuidv4(),
-            role: 'assistant',
-            content: `⏳ **Awaiting approval:** ${getActionDescription(action)}\n\nPlease approve or reject this action above.`,
-            timestamp: new Date(),
-          });
+          addFrameworkMessage(
+            `⏳ **Awaiting approval:** ${getActionDescription(action)}\n\nPlease approve or reject this action above.`
+          );
         } else {
           // Unknown action - log it for debugging
           console.warn('⚠️ Unknown action type:', action.type, '- not in safe or approval lists');
@@ -675,12 +624,7 @@ const ChatPanel: React.FC = () => {
 
     } catch (error) {
       console.error('Agent error:', error);
-      addMessage({
-        id: uuidv4(),
-        role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
-        timestamp: new Date(),
-      });
+      addFrameworkMessage('Sorry, I encountered an error. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -853,12 +797,7 @@ const ChatPanel: React.FC = () => {
       const title = `${templateInfo?.name || 'AI Response'} - ${new Date().toLocaleDateString()}`;
       
       // Show loading state
-      addMessage({
-        id: uuidv4(),
-        role: 'assistant',
-        content: `⏳ Generating ${type.toUpperCase()} document...`,
-        timestamp: new Date(),
-      });
+      addFrameworkMessage(`⏳ Generating ${type.toUpperCase()} document...`);
       
       const options = { template: detectedTemplate, includeCharts: true };
       
@@ -878,20 +817,12 @@ const ChatPanel: React.FC = () => {
       }
       
       // Success message with template info
-      addMessage({
-        id: uuidv4(),
-        role: 'assistant',
-        content: `✅ **${type.toUpperCase()} exported!** ${templateInfo?.icon || '📄'}\n\nUsed template: **${templateInfo?.name || 'Custom'}**\n\n${type === 'pdf' || type === 'powerpoint' ? '💡 Tip: Use Ctrl+P to save as PDF or F11 for fullscreen presentation.' : 'Check your downloads folder.'}`,
-        timestamp: new Date(),
-      });
+      addFrameworkMessage(
+        `✅ **${type.toUpperCase()} exported!** ${templateInfo?.icon || '📄'}\n\nUsed template: **${templateInfo?.name || 'Custom'}**\n\n${type === 'pdf' || type === 'powerpoint' ? '💡 Tip: Use Ctrl+P to save as PDF or F11 for fullscreen presentation.' : 'Check your downloads folder.'}`
+      );
     } catch (error: any) {
       console.error('Export error:', error);
-      addMessage({
-        id: uuidv4(),
-        role: 'assistant',
-        content: `❌ Export failed: ${error.message}`,
-        timestamp: new Date(),
-      });
+      addFrameworkMessage(`❌ Export failed: ${error.message}`);
     }
   };
 
@@ -899,12 +830,9 @@ const ChatPanel: React.FC = () => {
   const handleBrandingSave = (branding: UserBranding) => {
     setUserBranding(branding);
     setShowBranding(false);
-    addMessage({
-      id: uuidv4(),
-      role: 'assistant',
-      content: `✅ **Branding saved!** 🎨\n\nYour custom branding will now be used in all document exports:\n• Company: **${branding.companyName || 'Not set'}**\n• Colors: Primary ${branding.primaryColor}\n• Logo: ${branding.logoUrl ? '✓ Uploaded' : 'Not set'}\n\nTry exporting a document to see your branding in action!`,
-      timestamp: new Date(),
-    });
+    addFrameworkMessage(
+      `✅ **Branding saved!** 🎨\n\nYour custom branding will now be used in all document exports:\n• Company: **${branding.companyName || 'Not set'}**\n• Colors: Primary ${branding.primaryColor}\n• Logo: ${branding.logoUrl ? '✓ Uploaded' : 'Not set'}\n\nTry exporting a document to see your branding in action!`
+    );
   };
 
   return (

@@ -49,6 +49,15 @@ class GraphService {
   }
 
   /**
+   * Initialize auth state (restores cached sign-in after reload)
+   */
+  async initializeAuth(): Promise<void> {
+    await msalService.initialize();
+    this._isSignedIn = msalService.isSignedIn();
+    this._isRealDataMode = this._isSignedIn;
+  }
+
+  /**
    * Sign out from Microsoft Graph
    */
   async signOut(): Promise<void> {
@@ -200,30 +209,42 @@ class GraphService {
 
     try {
       const restUrl = this.getRestUrl();
-      const url = `${restUrl}/me/messages?$search="${encodeURIComponent(query)}"&$top=${count}&$select=id,subject,from,receivedDateTime,bodyPreview,isRead,importance,hasAttachments,conversationId`;
+      let nextUrl = `${restUrl}/me/messages?$search="${encodeURIComponent(query)}"&$select=id,subject,from,receivedDateTime,bodyPreview,isRead,importance,hasAttachments,conversationId`;
 
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const results: EmailSummary[] = [];
+      while (nextUrl && results.length < count) {
+        const pageSize = Math.min(100, count - results.length);
+        const pageUrl = nextUrl.includes('$top=') ? nextUrl : `${nextUrl}&$top=${pageSize}`;
 
-      if (!response.ok) return [];
+        const response = await fetch(pageUrl, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'ConsistencyLevel': 'eventual',
+          },
+        });
 
-      const data = await response.json();
-      return data.value.map((msg: any) => ({
-        id: msg.id,
-        subject: msg.subject || '(No Subject)',
-        sender: msg.from?.emailAddress?.name || 'Unknown',
-        senderEmail: msg.from?.emailAddress?.address || '',
-        receivedDateTime: new Date(msg.receivedDateTime),
-        preview: msg.bodyPreview || '',
-        isRead: msg.isRead,
-        importance: msg.importance?.toLowerCase() || 'normal',
-        hasAttachments: msg.hasAttachments,
-        conversationId: msg.conversationId,
-      }));
+        if (!response.ok) return [];
+
+        const data = await response.json();
+        const page = data.value.map((msg: any) => ({
+          id: msg.id,
+          subject: msg.subject || '(No Subject)',
+          sender: msg.from?.emailAddress?.name || 'Unknown',
+          senderEmail: msg.from?.emailAddress?.address || '',
+          receivedDateTime: new Date(msg.receivedDateTime),
+          preview: msg.bodyPreview || '',
+          isRead: msg.isRead,
+          importance: msg.importance?.toLowerCase() || 'normal',
+          hasAttachments: msg.hasAttachments,
+          conversationId: msg.conversationId,
+        }));
+
+        results.push(...page);
+        nextUrl = data['@odata.nextLink'] || '';
+      }
+
+      return results;
     } catch (error) {
       console.error('Error searching emails:', error);
       return [];
@@ -2194,6 +2215,13 @@ class GraphService {
       if (response.ok) {
         const data = await response.json();
         return { id: data.id };
+      }
+      if (response.status === 409) {
+        const folders = await this.getFolders();
+        const existing = folders.find(
+          (folder: any) => folder.displayName?.toLowerCase() === displayName.toLowerCase()
+        );
+        return existing ? { id: existing.id } : null;
       }
       return null;
     } catch (error) {

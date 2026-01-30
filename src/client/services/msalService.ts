@@ -50,7 +50,17 @@ const msalConfig: MsalConfiguration = {
 };
 
 // Microsoft Graph permissions
-const graphScopes = ['User.Read', 'Mail.Read', 'Mail.ReadWrite', 'Calendars.Read'];
+const graphScopes = [
+  'User.Read',
+  'Mail.Read',
+  'Mail.ReadWrite',
+  'Mail.Send',
+  'Calendars.Read',
+  'Calendars.ReadWrite',
+  'Contacts.ReadWrite',
+  'Tasks.ReadWrite',
+  'MailboxSettings.ReadWrite',
+];
 
 class MsalService {
   private msalInstance: any = null;
