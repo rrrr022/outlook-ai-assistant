@@ -38,14 +38,12 @@
       <DesktopSettings>
         <SourceLocation DefaultValue="https://zealous-ground-01f6af20f.2.azurestaticapps.net/taskpane.html"/>
         <RequestedHeight>650</RequestedHeight>
-        <RequestedWidth>600</RequestedWidth>
       </DesktopSettings>
     </Form>
     <Form xsi:type="ItemEdit">
       <DesktopSettings>
         <SourceLocation DefaultValue="https://zealous-ground-01f6af20f.2.azurestaticapps.net/taskpane.html"/>
         <RequestedHeight>650</RequestedHeight>
-        <RequestedWidth>600</RequestedWidth>
       </DesktopSettings>
     </Form>
   </FormSettings>
