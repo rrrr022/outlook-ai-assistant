@@ -42,8 +42,26 @@ export const AVAILABLE_ACTIONS = {
   GET_SENT_ITEMS: 'get_sent_items',
   GET_DRAFTS: 'get_drafts',
   
+  // Bulk operations
+  MARK_ALL_UNREAD_AS_READ: 'mark_all_unread_as_read',
+  DELETE_ALL_FROM_SENDER: 'delete_all_from_sender',
+  ARCHIVE_ALL_FROM_SENDER: 'archive_all_from_sender',
+  ARCHIVE_OLDER_THAN: 'archive_older_than',
+  MOVE_EMAILS_FROM_SENDER: 'move_emails_from_sender',
+  
+  // AI-powered actions
+  SUMMARIZE_EMAIL: 'summarize_email',
+  SUMMARIZE_THREAD: 'summarize_thread',
+  EXTRACT_ACTION_ITEMS: 'extract_action_items',
+  DRAFT_REPLY: 'draft_reply',
+  
+  // Analytics
+  GET_EMAIL_STATS: 'get_email_stats',
+  GET_TOP_SENDERS: 'get_top_senders',
+  
   // Search/Query actions
   SEARCH_EMAILS: 'search_emails',
+  ADVANCED_SEARCH: 'advanced_search',
   GET_UNREAD: 'get_unread',
   GET_EMAIL_DETAILS: 'get_email_details',
   GET_EMAILS_FROM_SENDER: 'get_emails_from_sender',
@@ -95,8 +113,8 @@ export const AVAILABLE_ACTIONS = {
 export function parseActionsFromResponse(aiResponse: string): ParsedAction[] {
   const actions: ParsedAction[] = [];
   
-  // Pattern 1: [ACTION:type]{json_params}[/ACTION]
-  const actionTagPattern = /\[ACTION:(\w+)\]([\s\S]*?)\[\/ACTION\]/gi;
+  // Pattern 1: [ACTION:type]{json_params}[/ACTION] or [ACTION: type]{json_params}[/ACTION] (with optional space)
+  const actionTagPattern = /\[ACTION:\s*(\w+)\]([\s\S]*?)\[\/ACTION\]/gi;
   let match;
   
   while ((match = actionTagPattern.exec(aiResponse)) !== null) {
@@ -159,6 +177,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       // ==================== EMAIL ACTIONS ====================
       
       case AVAILABLE_ACTIONS.SEND_EMAIL:
+      case 'send_email':
       case 'send': {
         const { to, subject, body, cc, bcc } = params;
         if (!to || !subject || !body) {
@@ -182,6 +201,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.REPLY_EMAIL:
+      case 'reply_email':
       case 'reply': {
         const { emailId, body } = params;
         if (!emailId || !body) {
@@ -200,6 +220,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.FORWARD_EMAIL:
+      case 'forward_email':
       case 'forward': {
         const { emailId, to, comment } = params;
         if (!emailId || !to) {
@@ -219,6 +240,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.DELETE_EMAIL:
+      case 'delete_email':
       case 'delete': {
         const { emailId } = params;
         if (!emailId) {
@@ -233,6 +255,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.ARCHIVE_EMAIL:
+      case 'archive_email':
       case 'archive': {
         const { emailId } = params;
         if (!emailId) {
@@ -250,13 +273,23 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       case 'mark_read': {
         const { emailId, emailIds } = params;
         if (emailIds && Array.isArray(emailIds)) {
-          const result = await graphService.markEmailsAsRead(emailIds);
-          const success = result.success > 0;
+          // Batch operations in chunks of 20 for better reliability
+          const chunkSize = 20;
+          let totalSuccess = 0;
+          let totalFailed = 0;
+          
+          for (let i = 0; i < emailIds.length; i += chunkSize) {
+            const chunk = emailIds.slice(i, i + chunkSize);
+            const result = await graphService.markEmailsAsRead(chunk);
+            totalSuccess += result.success;
+            totalFailed += result.failed;
+          }
+          
           return {
-            success,
+            success: totalSuccess > 0,
             action: type,
-            message: success 
-              ? `Marked ${result.success} emails as read${result.failed > 0 ? ` (${result.failed} failed)` : ''}`
+            message: totalSuccess > 0 
+              ? `✅ Marked ${totalSuccess} emails as read${totalFailed > 0 ? ` (${totalFailed} failed)` : ''}`
               : 'Failed to mark emails as read',
           };
         }
@@ -271,7 +304,418 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
+      case AVAILABLE_ACTIONS.MARK_ALL_UNREAD_AS_READ:
+      case 'mark_all_unread_as_read': {
+        // Fetch all unread emails and mark them as read in batches
+        const { count = 500 } = params;
+        console.log(`📧 Fetching up to ${count} unread emails to mark as read...`);
+        
+        const unreadEmails = await graphService.getUnreadEmails(count);
+        
+        if (unreadEmails.length === 0) {
+          return {
+            success: true,
+            action: type,
+            message: 'No unread emails to mark as read',
+          };
+        }
+        
+        const emailIds = unreadEmails.map(e => e.id);
+        const chunkSize = 20;
+        let totalSuccess = 0;
+        let totalFailed = 0;
+        
+        console.log(`📧 Marking ${emailIds.length} emails as read in batches of ${chunkSize}...`);
+        
+        for (let i = 0; i < emailIds.length; i += chunkSize) {
+          const chunk = emailIds.slice(i, i + chunkSize);
+          const result = await graphService.markEmailsAsRead(chunk);
+          totalSuccess += result.success;
+          totalFailed += result.failed;
+          console.log(`📧 Batch ${Math.floor(i / chunkSize) + 1}: ${result.success} success, ${result.failed} failed`);
+        }
+        
+        return {
+          success: totalSuccess > 0,
+          action: type,
+          message: `✅ Marked ${totalSuccess} of ${emailIds.length} emails as read${totalFailed > 0 ? ` (${totalFailed} failed)` : ''}`,
+        };
+      }
+      
+      case AVAILABLE_ACTIONS.DELETE_ALL_FROM_SENDER:
+      case 'delete_all_from_sender': {
+        const { senderEmail, count = 100 } = params;
+        if (!senderEmail) {
+          return { success: false, action: type, message: 'Missing senderEmail' };
+        }
+        
+        console.log(`🗑️ Finding emails from ${senderEmail} to delete...`);
+        const emails = await graphService.getEmailsFromSender(senderEmail, count);
+        
+        if (emails.length === 0) {
+          return { success: true, action: type, message: `No emails found from ${senderEmail}` };
+        }
+        
+        let deleted = 0;
+        for (const email of emails) {
+          const success = await graphService.deleteEmail(email.id);
+          if (success) deleted++;
+        }
+        
+        return {
+          success: deleted > 0,
+          action: type,
+          message: `🗑️ Deleted ${deleted} of ${emails.length} emails from ${senderEmail}`,
+        };
+      }
+      
+      case AVAILABLE_ACTIONS.ARCHIVE_ALL_FROM_SENDER:
+      case 'archive_all_from_sender': {
+        const { senderEmail, count = 100 } = params;
+        if (!senderEmail) {
+          return { success: false, action: type, message: 'Missing senderEmail' };
+        }
+        
+        console.log(`📦 Finding emails from ${senderEmail} to archive...`);
+        const emails = await graphService.getEmailsFromSender(senderEmail, count);
+        
+        if (emails.length === 0) {
+          return { success: true, action: type, message: `No emails found from ${senderEmail}` };
+        }
+        
+        let archived = 0;
+        for (const email of emails) {
+          const success = await graphService.archiveEmail(email.id);
+          if (success) archived++;
+        }
+        
+        return {
+          success: archived > 0,
+          action: type,
+          message: `📦 Archived ${archived} of ${emails.length} emails from ${senderEmail}`,
+        };
+      }
+      
+      case AVAILABLE_ACTIONS.MOVE_EMAILS_FROM_SENDER:
+      case 'move_emails_from_sender': {
+        const { senderEmail, senderDomain, folderName, count = 100 } = params;
+        if (!folderName) {
+          return { success: false, action: type, message: 'Missing folderName' };
+        }
+        if (!senderEmail && !senderDomain) {
+          return { success: false, action: type, message: 'Missing senderEmail or senderDomain' };
+        }
+        
+        // Find or create the target folder
+        let folderId: string | null = null;
+        const folders = await graphService.getFolders();
+        const existingFolder = folders.find((f: any) => 
+          f.displayName.toLowerCase() === folderName.toLowerCase()
+        );
+        
+        if (existingFolder) {
+          folderId = existingFolder.id;
+        } else {
+          // Create the folder
+          const newFolder = await graphService.createFolder(folderName);
+          folderId = newFolder?.id || null;
+        }
+        
+        if (!folderId) {
+          return { success: false, action: type, message: `Failed to find or create folder: ${folderName}` };
+        }
+        
+        // Search for emails from sender
+        let emails;
+        if (senderEmail) {
+          emails = await graphService.getEmailsFromSender(senderEmail, count);
+        } else {
+          // Search by domain
+          const result = await graphService.advancedSearchEmails({
+            senderDomain: senderDomain,
+            count,
+          });
+          emails = result.emails;
+        }
+        
+        if (emails.length === 0) {
+          return { success: true, action: type, message: `No emails found from ${senderEmail || senderDomain}` };
+        }
+        
+        let moved = 0;
+        for (const email of emails) {
+          const success = await graphService.moveEmailToFolder(email.id, folderId);
+          if (success) moved++;
+        }
+        
+        return {
+          success: moved > 0,
+          action: type,
+          message: `📁 Moved ${moved} of ${emails.length} emails from ${senderEmail || senderDomain} to "${folderName}"`,
+        };
+      }
+      
+      case AVAILABLE_ACTIONS.ARCHIVE_OLDER_THAN:
+      case 'archive_older_than': {
+        const { days = 30, count = 200 } = params;
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - days);
+        
+        console.log(`📦 Finding emails older than ${days} days to archive...`);
+        
+        const result = await graphService.advancedSearchEmails({
+          endDate: cutoffDate,
+          count,
+        });
+        
+        if (result.emails.length === 0) {
+          return { success: true, action: type, message: `No emails older than ${days} days found` };
+        }
+        
+        let archived = 0;
+        for (const email of result.emails) {
+          const success = await graphService.archiveEmail(email.id);
+          if (success) archived++;
+        }
+        
+        return {
+          success: archived > 0,
+          action: type,
+          message: `📦 Archived ${archived} emails older than ${days} days`,
+        };
+      }
+      
+      case AVAILABLE_ACTIONS.GET_EMAIL_STATS:
+      case 'get_email_stats': {
+        const { days = 30 } = params;
+        console.log(`📊 Calculating email stats for last ${days} days...`);
+        
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - days);
+        
+        const result = await graphService.advancedSearchEmails({
+          startDate,
+          count: 500,
+        });
+        
+        const emails = result.emails;
+        const unreadCount = emails.filter(e => !e.isRead).length;
+        const withAttachments = emails.filter(e => e.hasAttachments).length;
+        
+        // Count by sender
+        const senderCounts: Record<string, number> = {};
+        emails.forEach(e => {
+          const sender = e.senderEmail || 'unknown';
+          senderCounts[sender] = (senderCounts[sender] || 0) + 1;
+        });
+        
+        const topSenders = Object.entries(senderCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10)
+          .map(([email, count]) => ({ email, count }));
+        
+        // Count by day
+        const emailsByDay: Record<string, number> = {};
+        emails.forEach(e => {
+          const day = new Date(e.receivedDateTime).toLocaleDateString();
+          emailsByDay[day] = (emailsByDay[day] || 0) + 1;
+        });
+        
+        const avgPerDay = (emails.length / days).toFixed(1);
+        
+        return {
+          success: true,
+          action: type,
+          message: `📊 Email Stats (last ${days} days):\n• Total: ${emails.length} emails\n• Unread: ${unreadCount}\n• With attachments: ${withAttachments}\n• Avg per day: ${avgPerDay}\n• Top sender: ${topSenders[0]?.email || 'N/A'} (${topSenders[0]?.count || 0} emails)`,
+          data: {
+            total: emails.length,
+            unread: unreadCount,
+            withAttachments,
+            avgPerDay: parseFloat(avgPerDay),
+            topSenders,
+            emailsByDay,
+          },
+        };
+      }
+      
+      case AVAILABLE_ACTIONS.GET_TOP_SENDERS:
+      case 'get_top_senders': {
+        const { count = 10, days = 30 } = params;
+        
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - days);
+        
+        const result = await graphService.advancedSearchEmails({
+          startDate,
+          count: 500,
+        });
+        
+        const senderCounts: Record<string, { name: string; email: string; count: number }> = {};
+        result.emails.forEach(e => {
+          const email = e.senderEmail || 'unknown';
+          if (!senderCounts[email]) {
+            senderCounts[email] = { name: e.sender, email, count: 0 };
+          }
+          senderCounts[email].count++;
+        });
+        
+        const topSenders = Object.values(senderCounts)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, count);
+        
+        return {
+          success: true,
+          action: type,
+          message: `📊 Top ${count} senders (last ${days} days)`,
+          data: topSenders,
+        };
+      }
+      
+      case AVAILABLE_ACTIONS.SUMMARIZE_EMAIL:
+      case 'summarize_email': {
+        const { emailId } = params;
+        if (!emailId) {
+          return { success: false, action: type, message: 'Missing emailId' };
+        }
+        
+        const email = await graphService.getEmailDetails(emailId);
+        if (!email) {
+          return { success: false, action: type, message: 'Email not found' };
+        }
+        
+        // Extract text from body
+        const bodyText = email.body?.content?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() || '';
+        
+        return {
+          success: true,
+          action: type,
+          message: `📝 Email from ${email.from?.emailAddress?.name}: "${email.subject}"`,
+          data: {
+            subject: email.subject,
+            from: email.from?.emailAddress?.name,
+            preview: bodyText.substring(0, 500) + (bodyText.length > 500 ? '...' : ''),
+            hasAttachments: email.hasAttachments,
+            receivedDateTime: email.receivedDateTime,
+          },
+        };
+      }
+      
+      case AVAILABLE_ACTIONS.SUMMARIZE_THREAD:
+      case 'summarize_thread': {
+        const { conversationId, emailId } = params;
+        
+        let convId = conversationId;
+        if (!convId && emailId) {
+          const email = await graphService.getEmailDetails(emailId);
+          convId = email?.conversationId;
+        }
+        
+        if (!convId) {
+          return { success: false, action: type, message: 'Missing conversationId or emailId' };
+        }
+        
+        const thread = await graphService.getConversationThread(convId, 20);
+        
+        if (thread.length === 0) {
+          return { success: false, action: type, message: 'No emails found in thread' };
+        }
+        
+        const participants = [...new Set(thread.map(e => e.sender))];
+        const summary = thread.map(e => 
+          `• ${e.sender} (${new Date(e.receivedDateTime).toLocaleDateString()}): ${e.preview.substring(0, 100)}...`
+        ).join('\n');
+        
+        return {
+          success: true,
+          action: type,
+          message: `📧 Thread with ${thread.length} emails, ${participants.length} participants:\n${summary}`,
+          data: {
+            emailCount: thread.length,
+            participants,
+            firstEmail: thread[thread.length - 1]?.receivedDateTime,
+            lastEmail: thread[0]?.receivedDateTime,
+            subject: thread[0]?.subject,
+          },
+        };
+      }
+      
+      case AVAILABLE_ACTIONS.EXTRACT_ACTION_ITEMS:
+      case 'extract_action_items': {
+        const { emailId } = params;
+        if (!emailId) {
+          return { success: false, action: type, message: 'Missing emailId' };
+        }
+        
+        const email = await graphService.getEmailDetails(emailId);
+        if (!email) {
+          return { success: false, action: type, message: 'Email not found' };
+        }
+        
+        // Simple extraction - look for action-related keywords
+        const bodyText = email.body?.content?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ') || '';
+        const sentences = bodyText.split(/[.!?]+/).filter((s: string) => s.trim().length > 10);
+        
+        const actionKeywords = ['please', 'could you', 'can you', 'need to', 'must', 'should', 'will you', 
+                                'deadline', 'by monday', 'by tuesday', 'by wednesday', 'by thursday', 
+                                'by friday', 'asap', 'urgent', 'action required', 'follow up', 'let me know'];
+        
+        const potentialActions = sentences.filter((s: string) => 
+          actionKeywords.some(k => s.toLowerCase().includes(k))
+        ).slice(0, 5);
+        
+        return {
+          success: true,
+          action: type,
+          message: potentialActions.length > 0 
+            ? `📋 Found ${potentialActions.length} potential action items:\n${potentialActions.map((a: string, i: number) => `${i + 1}. ${a.trim()}`).join('\n')}`
+            : '📋 No clear action items found in this email',
+          data: {
+            actionItems: potentialActions,
+            subject: email.subject,
+            from: email.from?.emailAddress?.name,
+          },
+        };
+      }
+      
+      case AVAILABLE_ACTIONS.DRAFT_REPLY:
+      case 'draft_reply': {
+        const { emailId, tone = 'professional' } = params;
+        if (!emailId) {
+          return { success: false, action: type, message: 'Missing emailId' };
+        }
+        
+        const email = await graphService.getEmailDetails(emailId);
+        if (!email) {
+          return { success: false, action: type, message: 'Email not found' };
+        }
+        
+        // Create a simple professional reply template
+        const senderName = email.from?.emailAddress?.name?.split(' ')[0] || 'there';
+        
+        let replyBody = '';
+        if (tone === 'casual') {
+          replyBody = `Hi ${senderName},\n\nThanks for your email!\n\n[Your response here]\n\nBest,`;
+        } else if (tone === 'formal') {
+          replyBody = `Dear ${senderName},\n\nThank you for your email regarding "${email.subject}".\n\n[Your response here]\n\nBest regards,`;
+        } else {
+          replyBody = `Hi ${senderName},\n\nThank you for reaching out.\n\n[Your response here]\n\nBest regards,`;
+        }
+        
+        return {
+          success: true,
+          action: type,
+          message: `📝 Draft reply template created for: "${email.subject}"`,
+          data: {
+            to: email.from?.emailAddress?.address,
+            subject: `Re: ${email.subject}`,
+            body: replyBody,
+            originalEmailId: emailId,
+          },
+        };
+      }
+      
       case AVAILABLE_ACTIONS.MARK_UNREAD:
+      case 'mark_as_unread':
       case 'mark_unread': {
         const { emailId } = params;
         if (!emailId) {
@@ -286,6 +730,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.FLAG_EMAIL:
+      case 'flag_email':
       case 'flag': {
         const { emailId } = params;
         if (!emailId) {
@@ -300,6 +745,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.UNFLAG_EMAIL:
+      case 'unflag_email':
       case 'unflag': {
         const { emailId } = params;
         if (!emailId) {
@@ -314,6 +760,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.MOVE_EMAIL:
+      case 'move_email':
       case 'move': {
         const { emailId, folderId, folderName } = params;
         if (!emailId) {
@@ -351,6 +798,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.CREATE_DRAFT:
+      case 'create_draft':
       case 'draft': {
         const { to, subject, body, cc, bcc } = params;
         if (!to || !subject) {
@@ -379,8 +827,9 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       // ==================== SEARCH/QUERY ACTIONS ====================
       
       case AVAILABLE_ACTIONS.SEARCH_EMAILS:
+      case 'search_emails':
       case 'search': {
-        const { query, count = 20 } = params;
+        const { query, count = 250 } = params;
         if (!query) {
           return { success: false, action: type, message: 'Missing search query' };
         }
@@ -393,9 +842,63 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
+      case AVAILABLE_ACTIONS.ADVANCED_SEARCH:
+      case 'advanced_search': {
+        // Advanced search with multiple filter options
+        const { 
+          searchText,        // Full-text search
+          senderEmail,       // Filter by sender email  
+          senderDomain,      // Filter by domain (e.g., "@company.com")
+          subjectContains,   // Subject keyword filter
+          hasAttachments,    // Filter by attachments
+          isRead,            // Filter read/unread
+          importance,        // high/normal/low
+          startDate,         // Date range start
+          endDate,           // Date range end
+          folderId,          // Specific folder
+          count = 500,
+          skip = 0
+        } = params;
+        
+        const result = await graphService.advancedSearchEmails({
+          searchText,
+          senderEmail,
+          senderDomain,
+          subjectContains,
+          hasAttachments,
+          isRead,
+          importance,
+          startDate: startDate ? new Date(startDate) : undefined,
+          endDate: endDate ? new Date(endDate) : undefined,
+          folderId,
+          count,
+          skip,
+        });
+        
+        // Build filter description
+        const filterParts: string[] = [];
+        if (searchText) filterParts.push(`text: "${searchText}"`);
+        if (senderEmail) filterParts.push(`from: ${senderEmail}`);
+        if (senderDomain) filterParts.push(`domain: ${senderDomain}`);
+        if (subjectContains) filterParts.push(`subject: "${subjectContains}"`);
+        if (isRead !== undefined) filterParts.push(isRead ? 'read' : 'unread');
+        if (hasAttachments) filterParts.push('with attachments');
+        if (importance) filterParts.push(`importance: ${importance}`);
+        
+        const filterDesc = filterParts.length > 0 ? filterParts.join(', ') : 'all emails';
+        
+        return {
+          success: true,
+          action: type,
+          message: `Found ${result.emails.length} emails (${filterDesc})${result.hasMore ? ` - more available (${result.totalEstimate} total)` : ''}`,
+          data: result.emails,
+        };
+      }
+      
       case AVAILABLE_ACTIONS.GET_UNREAD:
+      case 'get_unread':
       case 'unread': {
-        const { count = 50 } = params;
+        const { count = 250 } = params;
         const emails = await graphService.getUnreadEmails(count);
         return {
           success: true,
@@ -406,6 +909,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.GET_EMAIL_DETAILS:
+      case 'get_email_details':
       case 'details': {
         const { emailId } = params;
         if (!emailId) {
@@ -421,8 +925,9 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.GET_EMAILS_FROM_SENDER:
+      case 'get_emails_from_sender':
       case 'from_sender': {
-        const { senderEmail, count = 10 } = params;
+        const { senderEmail, count = 100 } = params;
         if (!senderEmail) {
           return { success: false, action: type, message: 'Missing senderEmail' };
         }
@@ -438,6 +943,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       // ==================== CALENDAR ACTIONS ====================
       
       case AVAILABLE_ACTIONS.CREATE_EVENT:
+      case 'create_event':
       case 'schedule':
       case 'meeting': {
         const { subject, start, end, attendees, body, location } = params;
@@ -466,6 +972,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.DELETE_EVENT:
+      case 'delete_event':
       case 'cancel_meeting': {
         const { eventId } = params;
         if (!eventId) {
@@ -480,6 +987,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.GET_CALENDAR:
+      case 'get_calendar':
       case 'calendar': {
         const { days = 7 } = params;
         const events = await graphService.getCalendarEvents(days);
@@ -494,6 +1002,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       // ==================== TASK ACTIONS ====================
       
       case AVAILABLE_ACTIONS.CREATE_TASK:
+      case 'create_task':
       case 'task':
       case 'todo': {
         const { title, dueDate, body, linkedEmailId } = params;
@@ -515,6 +1024,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.GET_TASKS:
+      case 'get_tasks':
       case 'tasks': {
         const { count = 20 } = params;
         const tasks = await graphService.getTasks(count);
@@ -529,6 +1039,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       // ==================== CONTACT ACTIONS ====================
       
       case AVAILABLE_ACTIONS.GET_CONTACTS:
+      case 'get_contacts':
       case 'contacts': {
         const { count = 50 } = params;
         const contacts = await graphService.getContacts(count);
@@ -541,6 +1052,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.SEARCH_CONTACTS:
+      case 'search_contacts':
       case 'find_contact': {
         const { query } = params;
         if (!query) {
@@ -555,7 +1067,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.CREATE_CONTACT: {
+      case AVAILABLE_ACTIONS.CREATE_CONTACT:
+      case 'create_contact': {
         const { givenName, surname, displayName, emailAddresses, businessPhones, mobilePhone, companyName, jobTitle } = params;
         const contact = await graphService.createContact({
           givenName,
@@ -575,7 +1088,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.UPDATE_CONTACT: {
+      case AVAILABLE_ACTIONS.UPDATE_CONTACT:
+      case 'update_contact': {
         const { contactId, ...updates } = params;
         if (!contactId) {
           return { success: false, action: type, message: 'Missing contactId' };
@@ -588,7 +1102,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.DELETE_CONTACT: {
+      case AVAILABLE_ACTIONS.DELETE_CONTACT:
+      case 'delete_contact': {
         const { contactId } = params;
         if (!contactId) {
           return { success: false, action: type, message: 'Missing contactId' };
@@ -604,6 +1119,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       // ==================== FOLDER ACTIONS ====================
       
       case AVAILABLE_ACTIONS.GET_FOLDERS:
+      case 'get_folders':
       case 'folders': {
         const folders = await graphService.getFolders();
         return {
@@ -614,21 +1130,24 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.CREATE_FOLDER: {
+      case AVAILABLE_ACTIONS.CREATE_FOLDER:
+      case 'create_folder': {
         const { displayName, parentFolderId } = params;
         if (!displayName) {
           return { success: false, action: type, message: 'Missing folder name' };
         }
+        console.log(`📁 Creating folder: "${displayName}"...`);
         const folder = await graphService.createFolder(displayName, parentFolderId);
         return {
           success: !!folder,
           action: type,
-          message: folder ? `Folder "${displayName}" created` : 'Failed to create folder',
+          message: folder ? `📁 Folder "${displayName}" created successfully!` : 'Failed to create folder',
           data: folder,
         };
       }
       
-      case AVAILABLE_ACTIONS.RENAME_FOLDER: {
+      case AVAILABLE_ACTIONS.RENAME_FOLDER:
+      case 'rename_folder': {
         const { folderId, newName } = params;
         if (!folderId || !newName) {
           return { success: false, action: type, message: 'Missing folderId or newName' };
@@ -641,7 +1160,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.DELETE_FOLDER: {
+      case AVAILABLE_ACTIONS.DELETE_FOLDER:
+      case 'delete_folder': {
         const { folderId } = params;
         if (!folderId) {
           return { success: false, action: type, message: 'Missing folderId' };
@@ -670,7 +1190,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.SET_CATEGORIES: {
+      case AVAILABLE_ACTIONS.SET_CATEGORIES:
+      case 'set_categories': {
         const { emailId, categories } = params;
         if (!emailId || !categories) {
           return { success: false, action: type, message: 'Missing emailId or categories' };
@@ -683,7 +1204,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.SET_IMPORTANCE: {
+      case AVAILABLE_ACTIONS.SET_IMPORTANCE:
+      case 'set_importance': {
         const { emailId, importance } = params;
         if (!emailId || !importance) {
           return { success: false, action: type, message: 'Missing emailId or importance' };
@@ -696,7 +1218,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.GET_ATTACHMENTS: {
+      case AVAILABLE_ACTIONS.GET_ATTACHMENTS:
+      case 'get_attachments': {
         const { emailId } = params;
         if (!emailId) {
           return { success: false, action: type, message: 'Missing emailId' };
@@ -710,7 +1233,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.GET_CONVERSATION: {
+      case AVAILABLE_ACTIONS.GET_CONVERSATION:
+      case 'get_conversation': {
         const { conversationId, count = 20 } = params;
         if (!conversationId) {
           return { success: false, action: type, message: 'Missing conversationId' };
@@ -725,6 +1249,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.GET_SENT_ITEMS:
+      case 'get_sent_items':
       case 'sent': {
         const { count = 20 } = params;
         const emails = await graphService.getSentItems(count);
@@ -737,6 +1262,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.GET_DRAFTS:
+      case 'get_drafts':
       case 'drafts': {
         const { count = 20 } = params;
         const drafts = await graphService.getDrafts(count);
@@ -748,7 +1274,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.SEND_DRAFT: {
+      case AVAILABLE_ACTIONS.SEND_DRAFT:
+      case 'send_draft': {
         const { draftId } = params;
         if (!draftId) {
           return { success: false, action: type, message: 'Missing draftId' };
@@ -761,7 +1288,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.GET_CATEGORIES: {
+      case AVAILABLE_ACTIONS.GET_CATEGORIES:
+      case 'get_categories': {
         const categories = await graphService.getCategories();
         return {
           success: true,
@@ -773,7 +1301,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       
       // ==================== NEW CALENDAR ACTIONS ====================
       
-      case AVAILABLE_ACTIONS.UPDATE_EVENT: {
+      case AVAILABLE_ACTIONS.UPDATE_EVENT:
+      case 'update_event': {
         const { eventId, subject, start, end, location, body, attendees } = params;
         if (!eventId) {
           return { success: false, action: type, message: 'Missing eventId' };
@@ -793,7 +1322,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.CREATE_RECURRING_EVENT: {
+      case AVAILABLE_ACTIONS.CREATE_RECURRING_EVENT:
+      case 'create_recurring_event': {
         const { subject, start, end, recurrence, attendees, location } = params;
         if (!subject || !start || !end || !recurrence) {
           return { success: false, action: type, message: 'Missing required parameters' };
@@ -820,6 +1350,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.ACCEPT_MEETING:
+      case 'accept_meeting':
       case 'accept': {
         const { eventId, comment, sendResponse = true } = params;
         if (!eventId) {
@@ -834,6 +1365,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.DECLINE_MEETING:
+      case 'decline_meeting':
       case 'decline': {
         const { eventId, comment, sendResponse = true } = params;
         if (!eventId) {
@@ -848,6 +1380,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.TENTATIVE_MEETING:
+      case 'tentative_meeting':
       case 'tentative': {
         const { eventId, comment, sendResponse = true } = params;
         if (!eventId) {
@@ -861,7 +1394,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.GET_FREE_BUSY: {
+      case AVAILABLE_ACTIONS.GET_FREE_BUSY:
+      case 'get_free_busy': {
         const { emails, start, end } = params;
         if (!emails || !start || !end) {
           return { success: false, action: type, message: 'Missing emails, start, or end' };
@@ -881,7 +1415,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       
       // ==================== NEW TASK ACTIONS ====================
       
-      case AVAILABLE_ACTIONS.COMPLETE_TASK: {
+      case AVAILABLE_ACTIONS.COMPLETE_TASK:
+      case 'complete_task': {
         const { taskId, listId } = params;
         if (!taskId) {
           return { success: false, action: type, message: 'Missing taskId' };
@@ -894,7 +1429,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.DELETE_TASK: {
+      case AVAILABLE_ACTIONS.DELETE_TASK:
+      case 'delete_task': {
         const { taskId, listId } = params;
         if (!taskId) {
           return { success: false, action: type, message: 'Missing taskId' };
@@ -907,7 +1443,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.UPDATE_TASK: {
+      case AVAILABLE_ACTIONS.UPDATE_TASK:
+      case 'update_task': {
         const { taskId, title, body, dueDate, importance, listId } = params;
         if (!taskId) {
           return { success: false, action: type, message: 'Missing taskId' };
@@ -927,7 +1464,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       
       // ==================== MAIL RULES & SETTINGS ====================
       
-      case AVAILABLE_ACTIONS.GET_MAIL_RULES: {
+      case AVAILABLE_ACTIONS.GET_MAIL_RULES:
+      case 'get_mail_rules': {
         const rules = await graphService.getMailRules();
         return {
           success: true,
@@ -937,7 +1475,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.CREATE_MAIL_RULE: {
+      case AVAILABLE_ACTIONS.CREATE_MAIL_RULE:
+      case 'create_mail_rule': {
         const { displayName, conditions, actions: ruleActions } = params;
         if (!displayName || !conditions || !ruleActions) {
           return { success: false, action: type, message: 'Missing displayName, conditions, or actions' };
@@ -955,7 +1494,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.DELETE_MAIL_RULE: {
+      case AVAILABLE_ACTIONS.DELETE_MAIL_RULE:
+      case 'delete_mail_rule': {
         const { ruleId } = params;
         if (!ruleId) {
           return { success: false, action: type, message: 'Missing ruleId' };
@@ -969,6 +1509,7 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
       }
       
       case AVAILABLE_ACTIONS.GET_AUTO_REPLY:
+      case 'get_auto_reply':
       case 'oof':
       case 'out_of_office': {
         const settings = await graphService.getAutoReply();
@@ -980,7 +1521,8 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
         };
       }
       
-      case AVAILABLE_ACTIONS.SET_AUTO_REPLY: {
+      case AVAILABLE_ACTIONS.SET_AUTO_REPLY:
+      case 'set_auto_reply': {
         const { status, externalMessage, internalMessage, scheduledStartDateTime, scheduledEndDateTime, externalAudience } = params;
         if (!status) {
           return { success: false, action: type, message: 'Missing status' };

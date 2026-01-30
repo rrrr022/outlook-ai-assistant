@@ -10,6 +10,54 @@ import { useAPIKeyStore, AIProvider, PROVIDERS } from '../store/apiKeyStore';
 class AIService {
   private apiBaseUrl: string | null = null;
   private portDiscoveryPromise: Promise<string> | null = null;
+  private lastRequestTime = 0;
+  private minRequestInterval = 500; // Minimum 500ms between requests
+
+  /**
+   * Throttle requests to avoid hitting rate limits
+   */
+  private async throttle(): Promise<void> {
+    const now = Date.now();
+    const elapsed = now - this.lastRequestTime;
+    if (elapsed < this.minRequestInterval) {
+      await new Promise(r => setTimeout(r, this.minRequestInterval - elapsed));
+    }
+    this.lastRequestTime = Date.now();
+  }
+
+  /**
+   * Retry a function with exponential backoff for rate limits
+   */
+  private async withRetry<T>(
+    fn: () => Promise<T>,
+    maxRetries = 3,
+    baseDelay = 2000
+  ): Promise<T> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        await this.throttle();
+        return await fn();
+      } catch (error: any) {
+        lastError = error;
+        const errorMsg = error?.message || '';
+        
+        // Check if it's a rate limit error
+        if (errorMsg.includes('429') || errorMsg.toLowerCase().includes('rate limit')) {
+          if (attempt < maxRetries - 1) {
+            const delay = baseDelay * Math.pow(2, attempt); // 2s, 4s, 8s
+            console.log(`⏳ Rate limited (attempt ${attempt + 1}/${maxRetries}), retrying in ${delay}ms...`);
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+          }
+        }
+        // For non-rate-limit errors, don't retry
+        throw error;
+      }
+    }
+    throw lastError || new Error('Max retries exceeded');
+  }
 
   /**
    * Check if we're running in localhost/development mode
@@ -324,41 +372,49 @@ Most importantly: BE PROACTIVE AND TAKE ACTION rather than asking the user to do
         // GitHub Models requires CORS proxy - route through backend
         if (selectedProvider === 'github') {
           const baseUrl = await this.getApiBaseUrl();
-          const response = await fetch(`${baseUrl}/api/chat`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              provider: 'github',
-              apiKey: userApiKey,
-              model: selectedModel,
-              messages,
-            }),
+          
+          // Use retry logic for rate limit handling
+          const data = await this.withRetry(async () => {
+            const response = await fetch(`${baseUrl}/api/chat`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                provider: 'github',
+                apiKey: userApiKey,
+                model: selectedModel,
+                messages,
+              }),
+            });
+
+            if (!response.ok) {
+              const error = await response.json().catch(() => ({ error: response.statusText }));
+              throw new Error(error.error || error.message || `API error: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            if (result.error) {
+              throw new Error(result.error);
+            }
+            return result;
           });
-
-          if (!response.ok) {
-            const error = await response.json().catch(() => ({ error: response.statusText }));
-            throw new Error(error.error || error.message || `API error: ${response.statusText}`);
-          }
-
-          const data = await response.json();
-          if (data.error) {
-            throw new Error(data.error);
-          }
 
           console.log('📥 Got GitHub Models response via proxy');
           return { content: data.response };
         }
 
         // Other providers can call directly (OpenAI, xAI have CORS enabled)
-        const content = await this.directRequest(
-          selectedProvider,
-          userApiKey,
-          selectedModel,
-          messages,
-          { azureEndpoint, azureDeploymentName }
-        );
+        // Use retry logic for rate limit handling
+        const content = await this.withRetry(async () => {
+          return this.directRequest(
+            selectedProvider,
+            userApiKey,
+            selectedModel,
+            messages,
+            { azureEndpoint, azureDeploymentName }
+          );
+        });
 
         console.log('📥 Got direct AI response');
         return { content };

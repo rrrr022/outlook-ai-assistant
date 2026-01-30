@@ -191,9 +191,10 @@ class GraphService {
   }
 
   /**
-   * Search emails in inbox
+   * Search emails in inbox - uses Microsoft Graph $search for full-text search
+   * Searches across all folders by default (not just inbox)
    */
-  async searchEmails(query: string, count: number = 20): Promise<EmailSummary[]> {
+  async searchEmails(query: string, count: number = 250): Promise<EmailSummary[]> {
     const token = await this.getAccessToken();
     if (!token) return [];
 
@@ -232,7 +233,7 @@ class GraphService {
   /**
    * Get emails from a specific sender
    */
-  async getEmailsFromSender(senderEmail: string, count: number = 20): Promise<EmailSummary[]> {
+  async getEmailsFromSender(senderEmail: string, count: number = 100): Promise<EmailSummary[]> {
     const token = await this.getAccessToken();
     if (!token) return [];
 
@@ -265,6 +266,140 @@ class GraphService {
     } catch (error) {
       console.error('Error getting emails from sender:', error);
       return [];
+    }
+  }
+
+  /**
+   * Advanced email search with filters and pagination
+   * This provides more powerful search capabilities using Graph API filters
+   */
+  async advancedSearchEmails(options: {
+    searchText?: string;           // Full-text search in subject, body, sender
+    senderEmail?: string;          // Filter by sender email
+    senderDomain?: string;         // Filter by sender domain (e.g., "@company.com")
+    subjectContains?: string;      // Filter by subject keyword
+    hasAttachments?: boolean;      // Filter by attachment presence
+    isRead?: boolean;              // Filter by read/unread status
+    importance?: 'high' | 'normal' | 'low';
+    startDate?: Date;              // Filter emails received after this date
+    endDate?: Date;                // Filter emails received before this date
+    folderId?: string;             // Search in specific folder
+    count?: number;                // Max results (default 500)
+    skip?: number;                 // Pagination offset
+  }): Promise<{ emails: EmailSummary[]; totalEstimate: number; hasMore: boolean }> {
+    const token = await this.getAccessToken();
+    if (!token) return { emails: [], totalEstimate: 0, hasMore: false };
+
+    const count = options.count || 500;
+    const skip = options.skip || 0;
+
+    try {
+      const restUrl = this.getRestUrl();
+      
+      // Build filter conditions
+      const filters: string[] = [];
+      
+      if (options.senderEmail) {
+        filters.push(`from/emailAddress/address eq '${options.senderEmail}'`);
+      }
+      
+      if (options.senderDomain) {
+        // Use contains for domain matching
+        filters.push(`contains(from/emailAddress/address, '${options.senderDomain}')`);
+      }
+      
+      if (options.subjectContains) {
+        filters.push(`contains(subject, '${options.subjectContains}')`);
+      }
+      
+      if (options.hasAttachments !== undefined) {
+        filters.push(`hasAttachments eq ${options.hasAttachments}`);
+      }
+      
+      if (options.isRead !== undefined) {
+        filters.push(`isRead eq ${options.isRead}`);
+      }
+      
+      if (options.importance) {
+        filters.push(`importance eq '${options.importance}'`);
+      }
+      
+      if (options.startDate) {
+        filters.push(`receivedDateTime ge ${options.startDate.toISOString()}`);
+      }
+      
+      if (options.endDate) {
+        filters.push(`receivedDateTime le ${options.endDate.toISOString()}`);
+      }
+      
+      // Build the URL
+      let baseUrl = options.folderId 
+        ? `${restUrl}/me/mailfolders/${options.folderId}/messages`
+        : `${restUrl}/me/messages`;
+      
+      const params: string[] = [];
+      
+      // Add $search if provided (for full-text search)
+      if (options.searchText) {
+        params.push(`$search="${encodeURIComponent(options.searchText)}"`);
+      }
+      
+      // Add filters
+      if (filters.length > 0) {
+        params.push(`$filter=${filters.join(' and ')}`);
+      }
+      
+      // Add selection, count, pagination, and order
+      params.push(`$select=id,subject,from,receivedDateTime,bodyPreview,isRead,importance,hasAttachments,conversationId,parentFolderId`);
+      params.push(`$count=true`);
+      params.push(`$top=${count}`);
+      if (skip > 0) {
+        params.push(`$skip=${skip}`);
+      }
+      params.push(`$orderby=receivedDateTime desc`);
+      
+      const url = `${baseUrl}?${params.join('&')}`;
+      console.log(`🔍 Advanced search URL: ${url}`);
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'ConsistencyLevel': 'eventual',  // Required for $count
+        },
+      });
+
+      if (!response.ok) {
+        console.error('Advanced search failed:', await response.text());
+        return { emails: [], totalEstimate: 0, hasMore: false };
+      }
+
+      const data = await response.json();
+      const totalCount = data['@odata.count'] || data.value?.length || 0;
+      
+      const emails = data.value.map((msg: any) => ({
+        id: msg.id,
+        subject: msg.subject || '(No Subject)',
+        sender: msg.from?.emailAddress?.name || 'Unknown',
+        senderEmail: msg.from?.emailAddress?.address || '',
+        receivedDateTime: new Date(msg.receivedDateTime),
+        preview: msg.bodyPreview || '',
+        isRead: msg.isRead,
+        importance: msg.importance?.toLowerCase() || 'normal',
+        hasAttachments: msg.hasAttachments,
+        conversationId: msg.conversationId,
+      }));
+      
+      console.log(`📬 Advanced search found ${emails.length} emails (total estimate: ${totalCount})`);
+      
+      return {
+        emails,
+        totalEstimate: totalCount,
+        hasMore: skip + emails.length < totalCount,
+      };
+    } catch (error) {
+      console.error('Error in advanced search:', error);
+      return { emails: [], totalEstimate: 0, hasMore: false };
     }
   }
 
@@ -472,15 +607,16 @@ class GraphService {
   }
 
   /**
-   * Get all unread emails
+   * Get all unread emails - searches across all folders
    */
-  async getUnreadEmails(count: number = 50): Promise<EmailSummary[]> {
+  async getUnreadEmails(count: number = 250): Promise<EmailSummary[]> {
     const token = await this.getAccessToken();
     if (!token) return [];
 
     try {
       const restUrl = this.getRestUrl();
-      const url = `${restUrl}/me/mailfolders/inbox/messages?$filter=isRead eq false&$top=${count}&$select=id,subject,from,receivedDateTime,bodyPreview,isRead,importance,hasAttachments,conversationId&$orderby=receivedDateTime desc`;
+      // Search all messages (not just inbox) for unread emails
+      const url = `${restUrl}/me/messages?$filter=isRead eq false&$top=${count}&$select=id,subject,from,receivedDateTime,bodyPreview,isRead,importance,hasAttachments,conversationId,parentFolderId&$orderby=receivedDateTime desc`;
 
       const response = await fetch(url, {
         headers: {
@@ -492,6 +628,7 @@ class GraphService {
       if (!response.ok) return [];
 
       const data = await response.json();
+      console.log(`📬 Found ${data.value?.length || 0} unread emails across all folders`);
       return data.value.map((msg: any) => ({
         id: msg.id,
         subject: msg.subject || '(No Subject)',

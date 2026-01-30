@@ -126,6 +126,24 @@ class AutonomousAgent {
   }
 
   /**
+   * Get the last search results (for smart action consolidation)
+   */
+  getSearchContext(): EmailSummary[] {
+    return this.state.lastSearchResults;
+  }
+
+  /**
+   * Store contacts for context
+   */
+  setContactsContext(contacts: any[]) {
+    for (const contact of contacts) {
+      if (contact.displayName && contact.emailAddresses?.length > 0) {
+        this.state.knownContacts.set(contact.displayName.toLowerCase(), contact.emailAddresses[0]);
+      }
+    }
+  }
+
+  /**
    * Build the full context for the AI model
    * This gives the model everything it needs to make decisions
    */
@@ -166,7 +184,9 @@ Include actions in your response:
 - delete_email: {"emailId": "id"}
 - archive_email: {"emailId": "id"}
 - flag_email / unflag_email: {"emailId": "id"}
-- mark_read / mark_unread: {"emailId": "id"} or {"emailIds": [...]}
+- mark_read: {"emailId": "id"} - mark single email as read
+- mark_unread: {"emailId": "id"} - mark single email as unread
+- mark_all_unread_as_read: {"count": 500} - **BULK OPERATION** marks ALL unread emails as read (use this when user asks to mark all as read!)
 - move_email: {"emailId": "id", "folderName": "Folder"}
 - create_draft: {"to": [...], "subject": "...", "body": "..."}
 - send_draft: {"draftId": "id"}
@@ -212,17 +232,64 @@ Include actions in your response:
 - set_auto_reply: {"status": "disabled|alwaysEnabled|scheduled", "internalMessage": "...", "externalMessage": "...", "scheduledStartDateTime": "...", "scheduledEndDateTime": "..."}
 - get_categories: {}
 
-### Search Actions:
-- search_emails: {"query": "...", "count": 20}
-- get_unread: {"count": 50}
-- get_email_details: {"emailId": "id"}
+### Search Actions (use these to find emails):
+- search_emails: {"query": "search text", "count": 250} - Full text search across all folders
+- advanced_search: {"searchText": "...", "senderEmail": "...", "senderDomain": "@company.com", "subjectContains": "...", "hasAttachments": true/false, "isRead": true/false, "importance": "high|normal|low", "startDate": "2024-01-01", "endDate": "2024-12-31", "count": 500} - Powerful filtered search
+- get_unread: {"count": 250} - Get all unread emails
+- get_emails_from_sender: {"senderEmail": "...", "count": 100} - Get emails from specific sender
+- get_email_details: {"emailId": "id"} - Get full email content with body
 
-## GUIDELINES
+### Bulk Operations (use for mass actions):
+- mark_all_unread_as_read: {"count": 500} - Mark all unread emails as read at once
+- archive_all_from_sender: {"senderEmail": "...", "count": 100} - Archive all emails from a specific sender
+- archive_older_than: {"days": 30, "count": 200} - Archive emails older than X days
+- delete_all_from_sender: {"senderEmail": "...", "count": 100} - Delete all emails from sender (requires approval)
+- move_emails_from_sender: {"senderEmail": "...", "folderName": "Folder Name", "count": 100} - Move all emails from sender to a folder
+- move_emails_from_sender: {"senderDomain": "@domain.com", "folderName": "Folder Name"} - Move all emails from a domain to a folder
 
-1. Use the context provided below - don't say you lack access.
-2. For SEND/DELETE actions, they require user confirmation automatically.
-3. Be concise and helpful.
-4. When asked to DO something, include the ACTION command.
+### Analytics & Insights:
+- get_email_stats: {"days": 30} - Get email statistics (totals, averages, top senders)
+- get_top_senders: {"count": 10, "days": 30} - Get top N email senders
+
+### AI-Powered Features:
+- summarize_email: {"emailId": "id"} - Get a summary of a specific email
+- summarize_thread: {"emailId": "id"} OR {"conversationId": "id"} - Summarize an email conversation thread
+- extract_action_items: {"emailId": "id"} - Extract action items and to-dos from an email
+- draft_reply: {"emailId": "id", "tone": "professional|casual|formal"} - Generate a reply template
+
+## ⚠️ CRITICAL RULES - YOU MUST FOLLOW THESE EXACTLY ⚠️
+
+1. **ABSOLUTELY NO HEADERS** - NEVER use "##", "###", "Step 1", "Creating folder", etc.
+2. **NEVER NEVER NEVER LIST EMAIL IDs** - Even if search results show email IDs, DO NOT USE THEM!
+3. **ALWAYS USE BULK ACTIONS** for multiple emails:
+   - USPTO emails → move_emails_from_sender with senderDomain: "@uspto.gov"
+   - Newsletter emails → move_emails_from_sender with senderEmail
+   - Mark all read → mark_all_unread_as_read
+   - Archive/Delete from sender → archive_all_from_sender / delete_all_from_sender
+4. **RESPONSE FORMAT**: Just say "Done!" then actions. Nothing else.
+5. **IGNORE the email IDs in search results** - they are for display only, not for you to use!
+3. **BE BRIEF** - One sentence max, then actions. No explanations.
+4. **EXECUTE IMMEDIATELY** - Don't describe, just DO IT.
+5. For SEND/DELETE, user confirmation is automatic.
+
+## EXAMPLES - COPY THESE EXACTLY:
+
+User: "Create a Patent folder and move USPTO emails there"
+CORRECT RESPONSE:
+Done!
+[ACTION:create_folder]{"displayName": "Patent"}[/ACTION]
+[ACTION:move_emails_from_sender]{"senderDomain": "@uspto.gov", "folderName": "Patent"}[/ACTION]
+
+WRONG RESPONSE (DO NOT DO THIS):
+## Creating Patent Folder
+[ACTION:create_folder]...
+## Moving Emails
+The following email IDs will be moved...
+[ACTION:move_email]{"emailId": "AAMk..."}
+
+User: "Mark all unread as read"
+CORRECT: Done!
+[ACTION:mark_all_unread_as_read]{}[/ACTION]
 
 ---
 
@@ -249,7 +316,7 @@ ${userMessage}
 
 ---
 
-Now process this request. Use ACTION commands to execute tasks when appropriate.`;
+Remember: Say "Done!" then actions ONLY. No headers, no email IDs, no explanations.`;
   }
 
   /**

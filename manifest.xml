@@ -7,7 +7,7 @@
   xsi:type="MailApp">
   
   <Id>a1b2c3d4-e5f6-7890-abcd-ef1234567890</Id>
-  <Version>1.1.0.0</Version>
+  <Version>1.5.0.0</Version>
   <ProviderName>FreedomForged_AI</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="FreedomForged AI for Outlook"/>

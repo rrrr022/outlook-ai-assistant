@@ -416,35 +416,141 @@ const ChatPanel: React.FC = () => {
       
       // Check for action commands in the AI response
       const { parseActionsFromResponse, executeAction } = await loadActionExecutor();
-      const aiActions = parseActionsFromResponse(response.content);
+      let aiActions = parseActionsFromResponse(response.content);
       
-      // Execute safe read-only actions automatically
-      const safeActions = ['search', 'search_emails', 'get_unread', 'unread', 'get_calendar', 'calendar', 
-                          'get_tasks', 'tasks', 'get_contacts', 'contacts', 'get_folders', 'folders',
-                          'get_email_details', 'details', 'get_emails_from_sender', 'from_sender', 'search_contacts'];
+      // ========================================
+      // SMART ACTION CONSOLIDATION
+      // If AI outputs multiple move_email actions, convert to bulk move_emails_from_sender
+      // ========================================
+      const moveEmailActions = aiActions.filter(a => a.type === 'move_email' || a.type === 'move');
+      if (moveEmailActions.length > 2) {
+        console.log(`🔄 Converting ${moveEmailActions.length} move_email actions to bulk operation`);
+        
+        // Get the target folder from the first move action
+        const targetFolder = moveEmailActions[0]?.params?.folderName || 'Archive';
+        
+        // Try to determine the sender domain from search context
+        const searchContext = autonomousAgent.getSearchContext();
+        let senderDomain = '';
+        
+        // Look for common domains in the search results
+        if (searchContext && searchContext.length > 0) {
+          const domains: Record<string, number> = {};
+          searchContext.forEach((email: any) => {
+            if (email.senderEmail) {
+              const domain = '@' + email.senderEmail.split('@')[1];
+              domains[domain] = (domains[domain] || 0) + 1;
+            }
+          });
+          // Find the most common domain
+          const sortedDomains = Object.entries(domains).sort((a, b) => b[1] - a[1]);
+          if (sortedDomains.length > 0) {
+            senderDomain = sortedDomains[0][0];
+          }
+        }
+        
+        // Remove the individual move_email actions
+        aiActions = aiActions.filter(a => a.type !== 'move_email' && a.type !== 'move');
+        
+        // Add a single bulk move action
+        if (senderDomain) {
+          aiActions.push({
+            type: 'move_emails_from_sender',
+            params: { senderDomain, folderName: targetFolder }
+          });
+          console.log(`🔄 Converted to: move_emails_from_sender { senderDomain: "${senderDomain}", folderName: "${targetFolder}" }`);
+        } else {
+          // Fallback: move by email IDs if we can't determine domain
+          const emailIds = moveEmailActions.map(a => a.params?.emailId).filter(Boolean);
+          for (const emailId of emailIds) {
+            aiActions.push({ type: 'move_email', params: { emailId, folderName: targetFolder } });
+          }
+        }
+      }
       
-      // Actions that need approval
-      const needsApprovalActions = ['send_email', 'send', 'reply_email', 'reply', 'forward_email', 'forward',
-                                    'delete_email', 'delete', 'create_event', 'schedule', 'meeting'];
+      // Execute safe actions automatically - these are either read-only or low-risk operations
+      const safeActions = [
+        // Search/Query (read-only)
+        'search', 'search_emails', 'advanced_search', 'get_unread', 'unread', 
+        'get_email_details', 'details', 'get_emails_from_sender', 'from_sender',
+        'get_calendar', 'calendar', 'get_tasks', 'tasks', 'get_contacts', 'contacts', 
+        'get_folders', 'folders', 'search_contacts', 'get_attachments', 'get_conversation',
+        'get_sent_items', 'get_drafts', 'get_free_busy', 'get_mail_rules', 'get_auto_reply', 'get_categories',
+        
+        // Email management (non-destructive)
+        'mark_read', 'mark_unread', 'flag', 'flag_email', 'unflag', 'unflag_email',
+        'mark_all_unread_as_read', 'archive_email', 'archive', 'move_email', 'move',
+        'set_categories', 'set_importance',
+        
+        // Calendar responses (user-initiated)
+        'accept_meeting', 'decline_meeting', 'tentative_meeting',
+        
+        // Task management (low-risk)
+        'create_task', 'task', 'todo', 'complete_task', 'update_task',
+        
+        // Draft creation (doesn't send)
+        'create_draft', 'draft',
+        
+        // Folder management (low-risk)
+        'create_folder', 'rename_folder',
+        
+        // Contact management (low-risk)
+        'create_contact', 'update_contact',
+        
+        // Rules (low-risk)
+        'create_mail_rule', 'set_auto_reply',
+        
+        // Analytics and summaries (read-only)
+        'get_email_stats', 'get_top_senders', 'summarize_email', 'summarize_thread', 
+        'extract_action_items', 'draft_reply',
+        
+        // Bulk archiving/moving (non-destructive, can be undone)
+        'archive_all_from_sender', 'archive_older_than', 'move_emails_from_sender',
+      ];
+      
+      // Actions that need user approval before executing (destructive or sends messages)
+      const needsApprovalActions = [
+        // Sending messages
+        'send_email', 'send', 'reply_email', 'reply', 'reply_all', 'forward_email', 'forward', 'send_draft',
+        
+        // Deleting things
+        'delete_email', 'delete', 'delete_task', 'delete_contact', 'delete_folder', 'delete_mail_rule',
+        'delete_all_from_sender',  // Bulk delete - needs approval
+        
+        // Calendar events (could notify others)
+        'create_event', 'schedule', 'meeting', 'create_recurring_event', 'update_event', 'delete_event',
+      ];
+      
+      // Collect action results for context feedback
+      const actionResults: Array<{ action: string; success: boolean; message: string; data?: any }> = [];
       
       for (const action of aiActions) {
         if (safeActions.includes(action.type)) {
           // Execute read-only actions immediately
-          console.log('🤖 Auto-executing safe action:', action.type);
+          console.log('🤖 Auto-executing safe action:', action.type, action.params);
           const result = await executeAction(action);
           
-          if (result.success && result.data) {
-            // Show the results
+          // Store result for AI context feedback
+          actionResults.push({
+            action: action.type,
+            success: result.success,
+            message: result.message,
+            data: result.data,
+          });
+          
+          // Always show feedback for executed actions
+          if (result.success) {
             let resultSummary = '';
             
-            if (Array.isArray(result.data)) {
+            if (result.data && Array.isArray(result.data)) {
               if (result.data.length > 0) {
                 // Format based on data type
                 if (result.data[0].subject !== undefined) {
-                  // Email results
-                  resultSummary = result.data.slice(0, 8).map((e: any, i: number) => 
-                    `${i + 1}. **${e.sender || e.senderEmail}**: ${e.subject}`
-                  ).join('\n');
+                  // Email results - store in agent context for future queries
+                  autonomousAgent.setSearchResults(result.data);
+                  resultSummary = result.data.slice(0, 10).map((e: any, i: number) => 
+                    `${i + 1}. **${e.sender || e.senderEmail}** <${e.senderEmail}>\n   📧 ${e.subject}\n   📅 ${new Date(e.receivedDateTime).toLocaleDateString()}`
+                  ).join('\n\n');
                 } else if (result.data[0].title !== undefined) {
                   // Task results
                   resultSummary = result.data.slice(0, 10).map((t: any, i: number) => 
@@ -457,6 +563,7 @@ const ChatPanel: React.FC = () => {
                   ).join('\n');
                 } else if (result.data[0].displayName !== undefined) {
                   // Contact results
+                  autonomousAgent.setContactsContext(result.data);
                   resultSummary = result.data.slice(0, 10).map((c: any) => 
                     `👤 ${c.displayName}${c.emailAddresses?.length ? ` - ${c.emailAddresses[0]}` : ''}`
                   ).join('\n');
@@ -464,14 +571,31 @@ const ChatPanel: React.FC = () => {
               }
             }
             
-            if (resultSummary) {
-              addMessage({
-                id: uuidv4(),
-                role: 'assistant',
-                content: `📊 **${result.message}**\n\n${resultSummary}`,
-                timestamp: new Date(),
-              });
-            }
+            // Add action result to agent's conversation context for continuity
+            autonomousAgent.addTurn({
+              role: 'system',
+              content: `[ACTION COMPLETED: ${result.message}]${resultSummary ? '\n' + resultSummary : ''}`,
+              timestamp: new Date(),
+            });
+            
+            // Always show a message for successful actions
+            addMessage({
+              id: uuidv4(),
+              role: 'assistant',
+              content: resultSummary 
+                ? `📊 **${result.message}**\n\n${resultSummary}`
+                : `✅ **${result.message}**`,
+              timestamp: new Date(),
+            });
+          } else {
+            // Show failed actions
+            console.warn('⚠️ Action failed:', action.type, result.message);
+            addMessage({
+              id: uuidv4(),
+              role: 'assistant',
+              content: `❌ **Action failed:** ${result.message}`,
+              timestamp: new Date(),
+            });
           }
         } else if (needsApprovalActions.includes(action.type)) {
           // Queue for approval
@@ -482,7 +606,23 @@ const ChatPanel: React.FC = () => {
             details: action.params,
           };
           setPendingApprovals(prev => [...prev, approval]);
+          
+          // Show that approval is pending
+          addMessage({
+            id: uuidv4(),
+            role: 'assistant',
+            content: `⏳ **Awaiting approval:** ${getActionDescription(action)}\n\nPlease approve or reject this action above.`,
+            timestamp: new Date(),
+          });
+        } else {
+          // Unknown action - log it for debugging
+          console.warn('⚠️ Unknown action type:', action.type, '- not in safe or approval lists');
         }
+      }
+      
+      // Log action summary for debugging
+      if (actionResults.length > 0) {
+        console.log('📋 Action results summary:', actionResults.map(r => `${r.action}: ${r.success ? '✅' : '❌'}`).join(', '));
       }
       
       // ========================================
@@ -569,9 +709,28 @@ const ChatPanel: React.FC = () => {
       case 'schedule':
       case 'meeting':
         return `Create calendar event: "${params.subject}" on ${params.start}`;
+      case 'create_recurring_event':
+        return `Create recurring event: "${params.subject}"`;
+      case 'update_event':
+        return `Update calendar event`;
+      case 'delete_event':
+        return `Delete calendar event`;
       case 'create_task':
       case 'task':
+      case 'todo':
         return `Create task: "${params.title}"`;
+      case 'delete_task':
+        return `Delete task`;
+      case 'delete_contact':
+        return `Delete contact`;
+      case 'delete_folder':
+        return `Delete folder: "${params.folderId || params.folderName}"`;
+      case 'delete_mail_rule':
+        return `Delete mail rule`;
+      case 'send_draft':
+        return `Send draft email`;
+      case 'reply_all':
+        return `Reply all to email`;
       default:
         return `Execute: ${type}`;
     }
