@@ -12,6 +12,8 @@ import { useAppStore } from './store/appStore';
 import { useAPIKeyStore } from './store/apiKeyStore';
 import { approvalService } from './services/approvalService';
 
+declare const Office: any;
+
 type TabType = 'chat' | 'email' | 'calendar' | 'tasks' | 'analytics' | 'settings';
 
 // Check if onboarding has been completed
@@ -84,12 +86,46 @@ const App: React.FC = () => {
     }
   };
 
+  const handleOpenWindow = () => {
+    try {
+      if (typeof Office === 'undefined' || !Office.context?.ui) {
+        console.warn('Office UI not available for dialog');
+        return;
+      }
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const dialogUrl = `${origin}/taskpane.html?dialog=1`;
+      Office.context.ui.displayDialogAsync(dialogUrl, { height: 80, width: 60 }, (result: any) => {
+        if (result.status === Office.AsyncResultStatus.Failed) {
+          console.error('Failed to open dialog:', result.error?.message);
+        }
+      });
+    } catch (error) {
+      console.error('Error opening dialog:', error);
+    }
+  };
+
   return (
     <div className="app-container">
       <header className="app-header">
         <span className="header-icon">🤖</span>
         <h1>Outlook AI</h1>
         <span className="header-version">v1.5.0.0</span>
+        <button
+          onClick={handleOpenWindow}
+          style={{
+            marginLeft: 'auto',
+            padding: '4px 8px',
+            fontSize: '11px',
+            background: 'rgba(255,255,255,0.15)',
+            color: 'white',
+            border: '1px solid rgba(255,255,255,0.3)',
+            borderRadius: '4px',
+            cursor: 'pointer',
+          }}
+          title="Open large window"
+        >
+          Open Window
+        </button>
         {pendingApprovals.length > 0 && (
           <div className="pending-badge" title={`${pendingApprovals.length} pending approval(s)`}>
             <span className="pending-count">{pendingApprovals.length}</span>
