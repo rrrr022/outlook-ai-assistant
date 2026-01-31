@@ -266,17 +266,17 @@ Include actions in your response:
    - Newsletter emails → move_emails_from_sender with senderEmail
    - Mark all read → mark_all_unread_as_read
    - Archive/Delete from sender → archive_all_from_sender / delete_all_from_sender
-4. **RESPONSE FORMAT**: Just say "Done!" then actions. Nothing else.
+4. **RESPONSE FORMAT**: One concise sentence, then action blocks. No status words like "Done!".
 5. **IGNORE the email IDs in search results** - they are for display only, not for you to use!
 3. **BE BRIEF** - One sentence max, then actions. No explanations.
 4. **EXECUTE IMMEDIATELY** - Don't describe, just DO IT.
 5. For SEND/DELETE, user confirmation is automatic.
 
-## EXAMPLES - COPY THESE EXACTLY:
+## EXAMPLES:
 
 User: "Create a Patent folder and move USPTO emails there"
 CORRECT RESPONSE:
-Done!
+Creating the folder and moving those emails now.
 [ACTION:create_folder]{"displayName": "Patent"}[/ACTION]
 [ACTION:move_emails_from_sender]{"senderDomain": "@uspto.gov", "folderName": "Patent"}[/ACTION]
 
@@ -288,7 +288,8 @@ The following email IDs will be moved...
 [ACTION:move_email]{"emailId": "AAMk..."}
 
 User: "Mark all unread as read"
-CORRECT: Done!
+CORRECT:
+Marking all unread emails as read.
 [ACTION:mark_all_unread_as_read]{}[/ACTION]
 
 ---
@@ -316,7 +317,7 @@ ${userMessage}
 
 ---
 
-Remember: Say "Done!" then actions ONLY. No headers, no email IDs, no explanations.`;
+Remember: One sentence then actions only. No headers, no email IDs, no explanations.`;
   }
 
   /**

@@ -42,6 +42,7 @@ const ChatPanel: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { messages, addMessage, currentEmail, tasks } = useAppStore();
   const showFrameworkMessages = false;
+  const showExportButtons = false;
 
   const addFrameworkMessage = (content: string) => {
     if (!showFrameworkMessages) return;
@@ -51,6 +52,13 @@ const ChatPanel: React.FC = () => {
       content,
       timestamp: new Date(),
     });
+  };
+
+  const stripActionBlocks = (content: string) => {
+    return content
+      .replace(/\[ACTION:[\s\S]*?\[\/ACTION\]/gi, '')
+      .replace(/^Done!\s*/i, '')
+      .trim();
   };
 
   // Smart suggestions based on context
@@ -590,21 +598,8 @@ const ChatPanel: React.FC = () => {
         autonomousAgent.setPendingApprovals(parsed.pendingApprovals);
       }
       
-      // Build the display message
-      let displayContent = '';
-      
-      // Show thinking if present (collapsed/subtle)
-      if (parsed.thinking) {
-        displayContent += `💭 *${parsed.thinking}*\n\n`;
-      }
-      
-      // Show actions taken
-      if (parsed.actions) {
-        displayContent += `${parsed.actions}\n\n`;
-      }
-      
-      // Show main result
-      displayContent += parsed.result;
+      // Build the display message (strip action blocks and "Done!")
+      let displayContent = stripActionBlocks(parsed.result);
       
       // Add the response
       addMessage({
@@ -914,7 +909,7 @@ const ChatPanel: React.FC = () => {
               >
                 <div className="message-content">{message.content}</div>
                 {/* Export buttons for AI responses */}
-                {message.role === 'assistant' && message.content.length > 50 && (
+                {showExportButtons && message.role === 'assistant' && message.content.length > 50 && (
                   <div className="message-export-buttons">
                     <button
                       className="export-btn"
