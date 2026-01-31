@@ -62,6 +62,9 @@ const graphScopes = [
   'MailboxSettings.ReadWrite',
 ];
 
+const CACHED_ACCOUNT_KEY = 'ff_ai_cached_account';
+const CACHED_TOKEN_KEY = 'ff_ai_cached_token';
+
 class MsalService {
   private msalInstance: any = null;
   private initialized: boolean = false;
@@ -86,6 +89,20 @@ class MsalService {
       await this.msalInstance.initialize();
       this.initialized = true;
       console.log('✅ MSAL initialized successfully');
+
+      // Restore cached dialog auth (if available)
+      try {
+        const cachedAccount = localStorage.getItem(CACHED_ACCOUNT_KEY);
+        const cachedToken = localStorage.getItem(CACHED_TOKEN_KEY);
+        if (cachedAccount) {
+          this.cachedAccount = JSON.parse(cachedAccount);
+        }
+        if (cachedToken) {
+          this.cachedAccessToken = cachedToken;
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to restore cached auth:', error);
+      }
       
       // Handle redirect callback
       const response = await this.msalInstance.handleRedirectPromise();
@@ -176,6 +193,12 @@ class MsalService {
                   // Cache the account and token from the dialog
                   this.cachedAccount = message.account;
                   this.cachedAccessToken = message.accessToken;
+                  try {
+                    localStorage.setItem(CACHED_ACCOUNT_KEY, JSON.stringify(message.account));
+                    localStorage.setItem(CACHED_TOKEN_KEY, message.accessToken);
+                  } catch (error) {
+                    console.warn('⚠️ Failed to persist cached auth:', error);
+                  }
                   
                   // Try to reinitialize MSAL to pick up the new cached tokens
                   this.msalInstance = null;
@@ -248,6 +271,14 @@ class MsalService {
         account,
         postLogoutRedirectUri: REDIRECT_URI,
       });
+    }
+    this.cachedAccessToken = null;
+    this.cachedAccount = null;
+    try {
+      localStorage.removeItem(CACHED_ACCOUNT_KEY);
+      localStorage.removeItem(CACHED_TOKEN_KEY);
+    } catch (error) {
+      console.warn('⚠️ Failed to clear cached auth:', error);
     }
   }
 

@@ -96,6 +96,7 @@ export const AVAILABLE_ACTIONS = {
   CREATE_FOLDER: 'create_folder',
   RENAME_FOLDER: 'rename_folder',
   DELETE_FOLDER: 'delete_folder',
+  MOVE_FOLDER: 'move_folder',
   
   // Rules & Settings
   GET_MAIL_RULES: 'get_mail_rules',
@@ -1159,6 +1160,39 @@ export async function executeAction(action: ParsedAction): Promise<ActionResult>
           message: success ? `Folder renamed to "${newName}"` : 'Failed to rename folder',
         };
       }
+
+      case AVAILABLE_ACTIONS.MOVE_FOLDER:
+      case 'move_folder': {
+        const { folderId, folderName, destinationFolderId, destinationFolderName } = params;
+        const folders = await graphService.getFolders();
+
+        let sourceId = folderId;
+        if (!sourceId && folderName) {
+          const source = folders.find(
+            (f: any) => f.displayName?.toLowerCase() === folderName.toLowerCase()
+          );
+          sourceId = source?.id;
+        }
+
+        let destinationId = destinationFolderId;
+        if (!destinationId && destinationFolderName) {
+          const dest = folders.find(
+            (f: any) => f.displayName?.toLowerCase() === destinationFolderName.toLowerCase()
+          );
+          destinationId = dest?.id;
+        }
+
+        if (!sourceId || !destinationId) {
+          return { success: false, action: type, message: 'Missing folder or destination folder' };
+        }
+
+        const success = await graphService.moveFolder(sourceId, destinationId);
+        return {
+          success,
+          action: type,
+          message: success ? 'Folder moved successfully' : 'Failed to move folder',
+        };
+      }
       
       case AVAILABLE_ACTIONS.DELETE_FOLDER:
       case 'delete_folder': {
@@ -1675,6 +1709,18 @@ You can execute Outlook actions by including action commands in your response. U
 
 **Folder Actions:**
 - get_folders: Get all mail folders
+- create_folder: Create a folder
+  - Required: displayName
+  - Optional: parentFolderId
+
+- rename_folder: Rename a folder
+  - Required: folderId, newName
+
+- delete_folder: Delete a folder
+  - Required: folderId
+
+- move_folder: Move a folder under another folder
+  - Required: folderId OR folderName, destinationFolderId OR destinationFolderName
 
 ### Example Usage:
 

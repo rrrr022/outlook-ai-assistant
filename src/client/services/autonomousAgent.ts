@@ -224,6 +224,7 @@ Include actions in your response:
 - create_folder: {"displayName": "..."}
 - rename_folder: {"folderId": "id", "newName": "..."}
 - delete_folder: {"folderId": "id"}
+- move_folder: {"folderName": "Source", "destinationFolderName": "Destination"}
 - get_folders: {}
 
 ### Rules & Settings:

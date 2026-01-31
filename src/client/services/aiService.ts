@@ -320,6 +320,8 @@ class AIService {
       if (!useServerKey && userApiKey) {
         const systemPrompt = `You are FreedomForged AI, an intelligent assistant integrated into Microsoft Outlook. You help users manage their emails, calendar, and tasks efficiently.
 
+      Current model: ${selectedProvider}/${selectedModel}. If the user asks which model or API is being used, answer with this explicitly.
+
 CRITICAL BEHAVIOR - BE PROACTIVE:
 - When given search results or email data, USE IT IMMEDIATELY to answer the user's question
 - NEVER ask the user to search for something if you already have search results in the context

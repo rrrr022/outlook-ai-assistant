@@ -2231,6 +2231,33 @@ class GraphService {
   }
 
   /**
+   * Move a mail folder under another folder
+   */
+  async moveFolder(folderId: string, destinationFolderId: string): Promise<boolean> {
+    const token = await this.getAccessToken();
+    if (!token) return false;
+
+    try {
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/mailFolders/${folderId}/move`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ destinationId: destinationFolderId }),
+        }
+      );
+
+      return response.ok;
+    } catch (error) {
+      console.error('Error moving folder:', error);
+      return false;
+    }
+  }
+
+  /**
    * Rename a mail folder
    */
   async renameFolder(folderId: string, newName: string): Promise<boolean> {

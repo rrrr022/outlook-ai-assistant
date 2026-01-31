@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button, Input, SendIcon } from './ui/NativeComponents';
 import { useAppStore } from '../store/appStore';
+import { useAPIKeyStore } from '../store/apiKeyStore';
 import { aiService } from '../services/aiService';
 import { outlookService } from '../services/outlookService';
 import { brandingService, UserBranding } from '../services/brandingService';
@@ -41,11 +42,21 @@ const ChatPanel: React.FC = () => {
   const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { messages, addMessage, currentEmail, tasks } = useAppStore();
+  const { selectedProvider, selectedModel, useServerKey } = useAPIKeyStore();
   const showFrameworkMessages = false;
   const showExportButtons = false;
 
   const addFrameworkMessage = (content: string) => {
     if (!showFrameworkMessages) return;
+    addMessage({
+      id: uuidv4(),
+      role: 'assistant',
+      content,
+      timestamp: new Date(),
+    });
+  };
+
+  const addUserFacingMessage = (content: string) => {
     addMessage({
       id: uuidv4(),
       role: 'assistant',
@@ -186,7 +197,7 @@ const ChatPanel: React.FC = () => {
     setPendingApprovals(prev => prev.filter(a => a.id !== approvalId));
 
     if (!approved) {
-      addFrameworkMessage(`❌ Cancelled: ${approval.description}`);
+      addUserFacingMessage(`❌ Cancelled: ${approval.description}`);
       return;
     }
 
@@ -204,20 +215,20 @@ const ChatPanel: React.FC = () => {
         );
         
         if (success) {
-          addFrameworkMessage(
+          addUserFacingMessage(
             `✅ **Email sent successfully!**\n\n📤 To: ${approval.details.to}\n📋 Subject: ${approval.details.subject}`
           );
         } else {
-          addFrameworkMessage('❌ Failed to send email. Please try again.');
+          addUserFacingMessage('❌ Failed to send email. Please try again.');
         }
       } else if (approval.type === 'create_calendar_event') {
-        addFrameworkMessage(`✅ **Calendar event created!**\n\n📅 ${approval.details.title}`);
+        addUserFacingMessage(`✅ **Calendar event created!**\n\n📅 ${approval.details.title}`);
       } else if (approval.type === 'delete_email') {
-        addFrameworkMessage('✅ **Email deleted.**');
+        addUserFacingMessage('✅ **Email deleted.**');
       }
     } catch (error) {
       console.error('Error executing approved action:', error);
-      addFrameworkMessage(`❌ Error: Could not complete the action. ${error}`);
+      addUserFacingMessage(`❌ Error: Could not complete the action. ${error}`);
     } finally {
       setIsProcessing(false);
     }
@@ -241,6 +252,15 @@ const ChatPanel: React.FC = () => {
       content: text,
       timestamp: new Date(),
     });
+
+    const modelQuestion = /(which|what)\s+(model|api)|github|provider|api\s*provider/i.test(text);
+    if (modelQuestion) {
+      addUserFacingMessage(
+        `You are using ${selectedModel} via ${selectedProvider} (${useServerKey ? 'server proxy' : 'direct'}).`
+      );
+      setInput('');
+      return;
+    }
 
     setInput('');
     setIsProcessing(true);
@@ -285,7 +305,7 @@ const ChatPanel: React.FC = () => {
             `${i + 1}. **${e.sender}**: ${e.subject}`
           ).join('\n');
           
-          addFrameworkMessage(
+          addUserFacingMessage(
             `📬 **You have ${unreadEmails.length} unread emails**\n\n**Most recent:**\n${unreadSummary}${unreadEmails.length > 5 ? `\n\n...and ${unreadEmails.length - 5} more` : ''}`
           );
           
@@ -325,11 +345,11 @@ const ChatPanel: React.FC = () => {
               `${i + 1}. **${e.sender}** <${e.senderEmail}>\n   📧 ${e.subject}\n   📅 ${new Date(e.receivedDateTime).toLocaleDateString()}`
             ).join('\n\n');
             
-            addFrameworkMessage(
+            addUserFacingMessage(
               `📬 **Found ${searchResults.length} emails** (${uniqueSenders.length} unique senders)\n\n${resultsSummary}`
             );
           } else {
-            addFrameworkMessage(
+            addUserFacingMessage(
               `📭 **No emails found** matching "${searchTerms.join(', ')}". Try different search terms.`
             );
           }
@@ -441,7 +461,7 @@ const ChatPanel: React.FC = () => {
         'create_draft', 'draft',
         
         // Folder management (internal)
-        'create_folder', 'rename_folder', 'delete_folder',
+        'create_folder', 'rename_folder', 'delete_folder', 'move_folder',
         
         // Contact management (internal)
         'create_contact', 'update_contact', 'delete_contact',
@@ -547,7 +567,7 @@ const ChatPanel: React.FC = () => {
             });
             
             // Always show a message for successful actions
-            addFrameworkMessage(
+            addUserFacingMessage(
               resultSummary
                 ? `📊 **${result.message}**\n\n${resultSummary}`
                 : `✅ **${result.message}**`
@@ -555,7 +575,7 @@ const ChatPanel: React.FC = () => {
           } else {
             // Show failed actions
             console.warn('⚠️ Action failed:', action.type, result.message);
-            addFrameworkMessage(`❌ **Action failed:** ${result.message}`);
+            addUserFacingMessage(`❌ **Action failed:** ${result.message}`);
           }
         } else if (requiresApproval(action)) {
           // Queue for approval
@@ -602,12 +622,14 @@ const ChatPanel: React.FC = () => {
       let displayContent = stripActionBlocks(parsed.result);
       
       // Add the response
-      addMessage({
-        id: uuidv4(),
-        role: 'assistant',
-        content: displayContent,
-        timestamp: new Date(),
-      });
+      if (displayContent) {
+        addMessage({
+          id: uuidv4(),
+          role: 'assistant',
+          content: displayContent,
+          timestamp: new Date(),
+        });
+      }
       
       // Add to agent conversation
       autonomousAgent.addTurn({
@@ -619,7 +641,7 @@ const ChatPanel: React.FC = () => {
 
     } catch (error) {
       console.error('Agent error:', error);
-      addFrameworkMessage('Sorry, I encountered an error. Please try again.');
+      addUserFacingMessage('Sorry, I encountered an error. Please try again.');
     } finally {
       setIsProcessing(false);
     }

@@ -89,7 +89,7 @@ const App: React.FC = () => {
       <header className="app-header">
         <span className="header-icon">🤖</span>
         <h1>Outlook AI</h1>
-        <span className="header-version">v1.0</span>
+        <span className="header-version">v1.5.0.0</span>
         {pendingApprovals.length > 0 && (
           <div className="pending-badge" title={`${pendingApprovals.length} pending approval(s)`}>
             <span className="pending-count">{pendingApprovals.length}</span>
