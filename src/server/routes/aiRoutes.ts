@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { OpenAIProvider } from '../services/ai/openaiProvider';
 import { AnthropicProvider } from '../services/ai/anthropicProvider';
 import { GitHubModelsProvider } from '../services/ai/githubModelsProvider';
+import { needsWebSearch, runWebSearch, formatSearchResults } from '../services/ai/webSearch';
 import { AIRequest, AIResponse } from '../../shared/types';
 
 const router = Router();
@@ -46,6 +47,18 @@ router.post('/chat', async (req: Request, res: Response) => {
         success: false, 
         error: 'Prompt is required' 
       });
+    }
+
+    if (request.prompt && needsWebSearch(request.prompt)) {
+      try {
+        const results = await runWebSearch(request.prompt, 5);
+        const formatted = formatSearchResults(results);
+        if (formatted) {
+          request.prompt = `${request.prompt}${formatted}\n\nUse the web results above to answer. If they don't contain the answer, say you couldn't find it.`;
+        }
+      } catch (error) {
+        console.warn('Web search failed, continuing without results:', error);
+      }
     }
 
     const response = await provider.chat(request);
