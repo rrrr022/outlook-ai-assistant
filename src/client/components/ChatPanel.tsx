@@ -271,7 +271,13 @@ const ChatPanel: React.FC = () => {
 
       const isOutlookIntent = /(email|inbox|outlook|calendar|meeting|appointment|task|todo|folder|contact|unread|draft|reply|forward|archive|move|delete|rule|category|schedule|free busy|oof|auto reply|send)/i.test(text);
       if (!isOutlookIntent) {
-        const response = await aiService.chat({ prompt: text });
+        const today = new Date().toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+        const generalPrompt = `Today's date is ${today}. You are a general-purpose assistant. Answer the user's question directly. If the question requires real-time data (like weather), say you don't have live access, provide typical conditions for this time of year, and suggest checking a weather app. Avoid guessing or mentioning other months.\n\nUser question: ${text}`;
+        const response = await aiService.chat({ prompt: generalPrompt });
         addMessage({
           id: uuidv4(),
           role: 'assistant',
