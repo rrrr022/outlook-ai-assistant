@@ -322,6 +322,8 @@ class AIService {
 
       Current model: ${selectedProvider}/${selectedModel}. If the user asks which model or API is being used, answer with this explicitly.
 
+      General knowledge is allowed. If the user asks about non-Outlook topics (e.g., weather, math, definitions), answer fully and directly. Do not refuse or redirect. If asked for real-time data, explain you don’t have live access and provide the best general guidance instead.
+
 CRITICAL BEHAVIOR - BE PROACTIVE:
 - When given search results or email data, USE IT IMMEDIATELY to answer the user's question
 - NEVER ask the user to search for something if you already have search results in the context
@@ -423,18 +425,24 @@ Most importantly: BE PROACTIVE AND TAKE ACTION rather than asking the user to do
       }
 
       // Otherwise, use our backend proxy
-      const response = await this.proxyRequest<{ response: string; suggestions?: string[] }>('/ai/chat', {
+      const response = await this.proxyRequest<AIResponse & { response?: string; suggestions?: string[] }>('/ai/chat', {
         method: 'POST',
         body: JSON.stringify({
-          message: request.prompt,
+          prompt: request.prompt,
           context: request.context,
+          provider: selectedProvider,
+          model: selectedModel,
         }),
       });
 
       console.log('📥 Got proxied AI response');
       return { 
-        content: response.response,
-        suggestions: response.suggestions 
+        content: response.content || response.response || '',
+        suggestions: response.suggestions,
+        suggestedActions: response.suggestedActions,
+        extractedTasks: response.extractedTasks,
+        extractedEvents: response.extractedEvents,
+        draftReply: response.draftReply,
       };
 
     } catch (error) {

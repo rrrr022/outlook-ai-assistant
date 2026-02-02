@@ -9,6 +9,8 @@ interface AppState {
   
   // Chat State
   messages: Message[];
+  sessions: ChatSession[];
+  activeSessionId: string | null;
   
   // Email State
   currentEmail: EmailSummary | null;
@@ -43,6 +45,9 @@ interface AppState {
   setError: (error: string | null) => void;
   addMessage: (message: Message) => void;
   clearMessages: () => void;
+  createNewSession: () => void;
+  loadSession: (sessionId: string) => void;
+  deleteSession: (sessionId: string) => void;
   setCurrentEmail: (email: EmailSummary | null) => void;
   setEmailSummaries: (summaries: EmailSummary[]) => void;
   setCalendarEvents: (events: CalendarEvent[]) => void;
@@ -63,11 +68,48 @@ interface AppState {
   clearApprovals: () => void;
 }
 
+interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: Message[];
+}
+
+const SESSIONS_KEY = 'ff_ai_chat_sessions';
+
+const loadSessions = (): ChatSession[] => {
+  try {
+    const raw = localStorage.getItem(SESSIONS_KEY);
+    if (!raw) return [];
+    const sessions = JSON.parse(raw) as ChatSession[];
+    return sessions.map((session) => ({
+      ...session,
+      messages: session.messages.map((m: any) => ({
+        ...m,
+        timestamp: new Date(m.timestamp),
+      })),
+    }));
+  } catch {
+    return [];
+  }
+};
+
+const saveSessions = (sessions: ChatSession[]) => {
+  try {
+    localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+  } catch {
+    // ignore
+  }
+};
+
 export const useAppStore = create<AppState>((set) => ({
   // Initial State
   isLoading: false,
   error: null,
   messages: [],
+  sessions: loadSessions(),
+  activeSessionId: null,
   currentEmail: null,
   emailSummaries: [],
   calendarEvents: [],
@@ -91,9 +133,71 @@ export const useAppStore = create<AppState>((set) => ({
   setError: (error) => set({ error }),
   
   addMessage: (message) =>
-    set((state) => ({ messages: [...state.messages, message] })),
+    set((state) => {
+      const messages = [...state.messages, message];
+      let sessions = [...state.sessions];
+      let activeSessionId = state.activeSessionId;
+
+      if (!activeSessionId) {
+        activeSessionId = `session-${Date.now()}`;
+        const newSession: ChatSession = {
+          id: activeSessionId,
+          title: message.role === 'user' ? message.content.substring(0, 50) : 'New Chat',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          messages: [],
+        };
+        sessions = [newSession, ...sessions];
+      }
+
+      sessions = sessions.map((s) => {
+        if (s.id !== activeSessionId) return s;
+        const title = s.title === 'New Chat' && message.role === 'user'
+          ? message.content.substring(0, 50)
+          : s.title;
+        return {
+          ...s,
+          title,
+          updatedAt: new Date().toISOString(),
+          messages,
+        };
+      });
+
+      saveSessions(sessions);
+      return { messages, sessions, activeSessionId };
+    }),
   
   clearMessages: () => set({ messages: [] }),
+
+  createNewSession: () =>
+    set((state) => {
+      const id = `session-${Date.now()}`;
+      const newSession: ChatSession = {
+        id,
+        title: 'New Chat',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messages: [],
+      };
+      const sessions = [newSession, ...state.sessions];
+      saveSessions(sessions);
+      return { messages: [], sessions, activeSessionId: id };
+    }),
+
+  loadSession: (sessionId) =>
+    set((state) => {
+      const session = state.sessions.find((s) => s.id === sessionId);
+      if (!session) return state;
+      return { messages: session.messages, activeSessionId: sessionId };
+    }),
+
+  deleteSession: (sessionId) =>
+    set((state) => {
+      const sessions = state.sessions.filter((s) => s.id !== sessionId);
+      const activeSessionId = state.activeSessionId === sessionId ? null : state.activeSessionId;
+      saveSessions(sessions);
+      return { sessions, activeSessionId, messages: activeSessionId ? state.messages : [] };
+    }),
   
   setCurrentEmail: (email) => set({ currentEmail: email }),
   

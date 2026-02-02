@@ -37,6 +37,10 @@ router.post('/chat', async (req: Request, res: Response) => {
     const request: AIRequest = req.body;
     const provider = getProvider(req.body.provider);
 
+    if (!request.prompt && typeof (req.body as any)?.message === 'string') {
+      request.prompt = (req.body as any).message;
+    }
+
     if (!request.prompt) {
       return res.status(400).json({ 
         success: false, 

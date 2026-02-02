@@ -5,6 +5,7 @@ import CalendarPanel from './components/CalendarPanel';
 import TasksPanel from './components/TasksPanel';
 import SettingsPanel from './components/SettingsPanel';
 import AnalyticsPanel from './components/AnalyticsPanel';
+import HistoryPanel from './components/HistoryPanel';
 import ApprovalModal from './components/ApprovalModal';
 import OnboardingPanel from './components/OnboardingPanel';
 import { Spinner } from './components/ui/NativeComponents';
@@ -14,7 +15,7 @@ import { approvalService } from './services/approvalService';
 
 declare const Office: any;
 
-type TabType = 'chat' | 'email' | 'calendar' | 'tasks' | 'analytics' | 'settings';
+type TabType = 'chat' | 'email' | 'calendar' | 'tasks' | 'analytics' | 'settings' | 'history';
 
 // Check if onboarding has been completed
 const ONBOARDING_KEY = 'outlook-ai-onboarding-complete';
@@ -52,6 +53,7 @@ const App: React.FC = () => {
     { id: 'calendar', label: 'Cal', icon: '📅' },
     { id: 'tasks', label: 'Tasks', icon: '☑️' },
     { id: 'analytics', label: 'Stats', icon: '📊' },
+    { id: 'history', label: 'History', icon: '🕓' },
     { id: 'settings', label: 'Config', icon: '⚙️' },
   ];
 
@@ -67,6 +69,8 @@ const App: React.FC = () => {
         return <TasksPanel />;
       case 'analytics':
         return <AnalyticsPanel />;
+      case 'history':
+        return <HistoryPanel />;
       case 'settings':
         return <SettingsPanel />;
       default:

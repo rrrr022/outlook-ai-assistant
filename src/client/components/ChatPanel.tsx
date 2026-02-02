@@ -267,6 +267,27 @@ const ChatPanel: React.FC = () => {
 
     try {
       const { graphService } = await loadGraphService();
+      const deferredNotices: string[] = [];
+
+      const isOutlookIntent = /(email|inbox|outlook|calendar|meeting|appointment|task|todo|folder|contact|unread|draft|reply|forward|archive|move|delete|rule|category|schedule|free busy|oof|auto reply|send)/i.test(text);
+      if (!isOutlookIntent) {
+        const response = await aiService.chat({ prompt: text });
+        addMessage({
+          id: uuidv4(),
+          role: 'assistant',
+          content: response.content,
+          timestamp: new Date(),
+        });
+
+        autonomousAgent.addTurn({
+          role: 'agent',
+          content: response.content,
+          timestamp: new Date(),
+        });
+
+        setIsProcessing(false);
+        return;
+      }
       
       // Get current email context
       const emailContext = await outlookService.getCurrentEmailContext();
@@ -305,7 +326,7 @@ const ChatPanel: React.FC = () => {
             `${i + 1}. **${e.sender}**: ${e.subject}`
           ).join('\n');
           
-          addUserFacingMessage(
+          deferredNotices.push(
             `📬 **You have ${unreadEmails.length} unread emails**\n\n**Most recent:**\n${unreadSummary}${unreadEmails.length > 5 ? `\n\n...and ${unreadEmails.length - 5} more` : ''}`
           );
           
@@ -345,11 +366,11 @@ const ChatPanel: React.FC = () => {
               `${i + 1}. **${e.sender}** <${e.senderEmail}>\n   📧 ${e.subject}\n   📅 ${new Date(e.receivedDateTime).toLocaleDateString()}`
             ).join('\n\n');
             
-            addUserFacingMessage(
+            deferredNotices.push(
               `📬 **Found ${searchResults.length} emails** (${uniqueSenders.length} unique senders)\n\n${resultsSummary}`
             );
           } else {
-            addUserFacingMessage(
+            deferredNotices.push(
               `📭 **No emails found** matching "${searchTerms.join(', ')}". Try different search terms.`
             );
           }
@@ -567,7 +588,7 @@ const ChatPanel: React.FC = () => {
             });
             
             // Always show a message for successful actions
-            addUserFacingMessage(
+            deferredNotices.push(
               resultSummary
                 ? `📊 **${result.message}**\n\n${resultSummary}`
                 : `✅ **${result.message}**`
@@ -575,7 +596,7 @@ const ChatPanel: React.FC = () => {
           } else {
             // Show failed actions
             console.warn('⚠️ Action failed:', action.type, result.message);
-            addUserFacingMessage(`❌ **Action failed:** ${result.message}`);
+            deferredNotices.push(`❌ **Action failed:** ${result.message}`);
           }
         } else if (requiresApproval(action)) {
           // Queue for approval
@@ -629,6 +650,8 @@ const ChatPanel: React.FC = () => {
           content: displayContent,
           timestamp: new Date(),
         });
+      } else if (deferredNotices.length > 0) {
+        addUserFacingMessage(deferredNotices.join('\n\n'));
       }
       
       // Add to agent conversation

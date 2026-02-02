@@ -895,22 +895,39 @@ class GraphService {
     if (!token) return [];
 
     try {
-      const response = await fetch(
-        'https://graph.microsoft.com/v1.0/me/mailFolders?$top=50',
-        {
-          headers: { 'Authorization': `Bearer ${token}` },
+      const flatten = (folders: any[]): { id: string; displayName: string; unreadItemCount: number }[] => {
+        const results: { id: string; displayName: string; unreadItemCount: number }[] = [];
+        for (const folder of folders || []) {
+          results.push({
+            id: folder.id,
+            displayName: folder.displayName,
+            unreadItemCount: folder.unreadItemCount || 0,
+          });
+          if (folder.childFolders && folder.childFolders.length > 0) {
+            results.push(...flatten(folder.childFolders));
+          }
         }
-      );
+        return results;
+      };
 
-      if (response.ok) {
-        const data = await response.json();
-        return data.value.map((folder: any) => ({
-          id: folder.id,
-          displayName: folder.displayName,
-          unreadItemCount: folder.unreadItemCount || 0,
-        }));
+      let nextUrl: string | null = 'https://graph.microsoft.com/v1.0/me/mailFolders?$top=50&$expand=childFolders($top=50)';
+      const all: { id: string; displayName: string; unreadItemCount: number }[] = [];
+
+      while (nextUrl) {
+        const response: Response = await fetch(nextUrl, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+
+        if (!response.ok) {
+          return [];
+        }
+
+        const data: any = await response.json();
+        all.push(...flatten(data.value || []));
+        nextUrl = data['@odata.nextLink'] || null;
       }
-      return [];
+
+      return all;
     } catch (error) {
       console.error('Error getting folders:', error);
       return [];
