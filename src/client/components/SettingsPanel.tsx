@@ -544,7 +544,7 @@ const SettingsPanel: React.FC = () => {
           ℹ️ About
         </h3>
         <p className="text-small text-muted">
-          <strong>Outlook AI</strong> v1.5.0.0
+          <strong>Outlook AI</strong> v1.5.0.1
           <br />
           Your intelligent email, calendar, and task management companion.
           <br /><br />

@@ -113,7 +113,7 @@ const App: React.FC = () => {
       <header className="app-header">
         <span className="header-icon">🤖</span>
         <h1>Outlook AI</h1>
-        <span className="header-version">v1.5.0.0</span>
+        <span className="header-version">v1.5.0.1</span>
         <button
           onClick={handleOpenWindow}
           style={{

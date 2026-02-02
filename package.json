@@ -1,6 +1,6 @@
 {
   "name": "outlook-ai-assistant",
-  "version": "1.5.0",
+  "version": "1.5.0.1",
   "description": "AI-powered Outlook Add-in for email management, calendar scheduling, and task automation",
   "main": "dist/server/index.js",
   "scripts": {
