@@ -119,7 +119,7 @@ class AutonomousAgent {
     this.state.conversation = messages
       .filter((m) => m.role !== 'system')
       .map((m) => ({
-        role: m.role === 'user' ? 'user' : 'agent',
+        role: (m.role === 'user' ? 'user' : 'agent') as 'user' | 'agent',
         content: m.content,
         timestamp: m.timestamp,
       }))
