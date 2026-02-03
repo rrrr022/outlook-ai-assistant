@@ -332,9 +332,20 @@ const ChatPanel: React.FC = () => {
             `${i + 1}. **${e.sender}**: ${e.subject}`
           ).join('\n');
           
-          deferredNotices.push(
-            `📬 **You have ${unreadEmails.length} unread emails**\n\n**Most recent:**\n${unreadSummary}${unreadEmails.length > 5 ? `\n\n...and ${unreadEmails.length - 5} more` : ''}`
-          );
+          if (unreadEmails.length > 0) {
+            deferredNotices.push(
+              `📬 **You have ${unreadEmails.length} unread emails**\n\n**Most recent:**\n${unreadSummary}${unreadEmails.length > 5 ? `\n\n...and ${unreadEmails.length - 5} more` : ''}`
+            );
+          } else {
+            const unreadCount = await graphService.getUnreadEmailCount();
+            if (unreadCount > 0) {
+              deferredNotices.push(
+                `📬 **You have ${unreadCount} unread emails** in Inbox. I couldn’t list them just now — want me to retry?`
+              );
+            } else {
+              deferredNotices.push('📬 **You have 0 unread emails** in Inbox.');
+            }
+          }
           
           // Still continue to AI for additional analysis
         } catch (error) {

@@ -636,8 +636,8 @@ class GraphService {
 
     try {
       const restUrl = this.getRestUrl();
-      // Search all messages (not just inbox) for unread emails
-      const url = `${restUrl}/me/messages?$filter=isRead eq false&$top=${count}&$select=id,subject,from,receivedDateTime,bodyPreview,isRead,importance,hasAttachments,conversationId,parentFolderId&$orderby=receivedDateTime desc`;
+      // Search unread emails in Inbox first (matches what users see)
+      const url = `${restUrl}/me/mailFolders/Inbox/messages?$filter=isRead eq false&$top=${count}&$select=id,subject,from,receivedDateTime,bodyPreview,isRead,importance,hasAttachments,conversationId,parentFolderId&$orderby=receivedDateTime desc`;
 
       const response = await fetch(url, {
         headers: {
@@ -649,7 +649,7 @@ class GraphService {
       if (!response.ok) return [];
 
       const data = await response.json();
-      console.log(`📬 Found ${data.value?.length || 0} unread emails across all folders`);
+      console.log(`📬 Found ${data.value?.length || 0} unread emails in Inbox`);
       return data.value.map((msg: any) => ({
         id: msg.id,
         subject: msg.subject || '(No Subject)',
@@ -665,6 +665,33 @@ class GraphService {
     } catch (error) {
       console.error('Error getting unread emails:', error);
       return [];
+    }
+  }
+
+  /**
+   * Get unread count from Inbox folder metadata
+   */
+  async getUnreadEmailCount(): Promise<number> {
+    const token = await this.getAccessToken();
+    if (!token) return 0;
+
+    try {
+      const restUrl = this.getRestUrl();
+      const url = `${restUrl}/me/mailFolders/Inbox?$select=unreadItemCount`;
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) return 0;
+      const data = await response.json();
+      return data.unreadItemCount || 0;
+    } catch (error) {
+      console.error('Error getting unread count:', error);
+      return 0;
     }
   }
 
