@@ -1,4 +1,4 @@
-import { EmailSummary } from '../../shared/types';
+import { EmailSummary, Message } from '../../shared/types';
 
 /**
  * Autonomous Agent Service
@@ -110,6 +110,20 @@ class AutonomousAgent {
     if (this.state.conversation.length > 50) {
       this.state.conversation = this.state.conversation.slice(-50);
     }
+  }
+
+  /**
+   * Hydrate conversation from persisted UI messages
+   */
+  hydrateConversation(messages: Message[]) {
+    this.state.conversation = messages
+      .filter((m) => m.role !== 'system')
+      .map((m) => ({
+        role: m.role === 'user' ? 'user' : 'agent',
+        content: m.content,
+        timestamp: m.timestamp,
+      }))
+      .slice(-50);
   }
 
   /**

@@ -23,7 +23,7 @@ const ONBOARDING_KEY = 'outlook-ai-onboarding-complete';
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('chat');
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const { isLoading, currentApproval, pendingApprovals } = useAppStore();
+  const { isLoading, currentApproval, pendingApprovals, ensureDailySession } = useAppStore();
   const { apiKeys } = useAPIKeyStore();
 
   // Check if user needs onboarding
@@ -36,6 +36,10 @@ const App: React.FC = () => {
       setShowOnboarding(true);
     }
   }, [apiKeys]);
+
+  useEffect(() => {
+    ensureDailySession();
+  }, [ensureDailySession]);
 
   const handleOnboardingComplete = () => {
     localStorage.setItem(ONBOARDING_KEY, 'true');

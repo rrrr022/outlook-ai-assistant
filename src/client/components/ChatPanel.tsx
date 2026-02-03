@@ -41,7 +41,7 @@ const ChatPanel: React.FC = () => {
   const [userBranding, setUserBranding] = useState<UserBranding>(brandingService.load());
   const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { messages, addMessage, currentEmail, tasks } = useAppStore();
+  const { messages, addMessage, currentEmail, tasks, activeSessionId } = useAppStore();
   const { selectedProvider, selectedModel, useServerKey } = useAPIKeyStore();
   const showFrameworkMessages = false;
   const showExportButtons = false;
@@ -88,6 +88,12 @@ const ChatPanel: React.FC = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      autonomousAgent.hydrateConversation(messages);
+    }
+  }, [activeSessionId]);
 
   // Check sign-in status on mount (lazy load graphService)
   useEffect(() => {
@@ -276,7 +282,12 @@ const ChatPanel: React.FC = () => {
           month: 'long',
           day: 'numeric',
         });
-        const generalPrompt = `Today's date is ${today}. You are a general-purpose assistant. Answer the user's question directly. If the question requires real-time data (like weather), say you don't have live access, provide typical conditions for this time of year, and suggest checking a weather app. Avoid guessing or mentioning other months.\n\nUser question: ${text}`;
+        const historyMessages = [...messages, { role: 'user', content: text }]
+          .filter((m) => m.role !== 'system')
+          .slice(-12)
+          .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+          .join('\n');
+        const generalPrompt = `Today's date is ${today}. You are a general-purpose assistant. Use the conversation history to stay consistent. Answer the user's question directly. If the question requires real-time data (like weather), say you don't have live access, provide typical conditions for this time of year, and suggest checking a weather app. Avoid guessing or mentioning other months.\n\nConversation so far:\n${historyMessages}\n\nUser question: ${text}`;
         const response = await aiService.chat({ prompt: generalPrompt });
         addMessage({
           id: uuidv4(),

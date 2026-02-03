@@ -45,6 +45,7 @@ interface AppState {
   setError: (error: string | null) => void;
   addMessage: (message: Message) => void;
   clearMessages: () => void;
+  ensureDailySession: () => void;
   createNewSession: () => void;
   loadSession: (sessionId: string) => void;
   deleteSession: (sessionId: string) => void;
@@ -77,6 +78,14 @@ interface ChatSession {
 }
 
 const SESSIONS_KEY = 'ff_ai_chat_sessions';
+
+const getLocalDateKey = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const loadSessions = (): ChatSession[] => {
   try {
@@ -168,6 +177,27 @@ export const useAppStore = create<AppState>((set) => ({
     }),
   
   clearMessages: () => set({ messages: [] }),
+
+  ensureDailySession: () =>
+    set((state) => {
+      const dateKey = getLocalDateKey();
+      const dailyId = `session-${dateKey}`;
+      const existing = state.sessions.find((s) => s.id === dailyId);
+      if (existing) {
+        return { messages: existing.messages, activeSessionId: dailyId };
+      }
+
+      const newSession: ChatSession = {
+        id: dailyId,
+        title: `Chat - ${dateKey}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messages: [],
+      };
+      const sessions = [newSession, ...state.sessions];
+      saveSessions(sessions);
+      return { messages: [], sessions, activeSessionId: dailyId };
+    }),
 
   createNewSession: () =>
     set((state) => {
